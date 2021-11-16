@@ -24,11 +24,13 @@ def encrypt_targets(
 ):
     def _auth():
         password = bytes(
-            CONSOLE.input(prompt="\nEnter password: ", password=True), encoding="utf-8",
+            CONSOLE.input(prompt="\nEnter password: ", password=True),
+            encoding="utf-8",
         )
 
         verification = bytes(
-            CONSOLE.input(prompt="Verify password: ", password=True), encoding="utf-8",
+            CONSOLE.input(prompt="Verify password: ", password=True),
+            encoding="utf-8",
         )
 
         return (password, verification)
@@ -43,7 +45,9 @@ def encrypt_targets(
             password, verification = _auth()
 
     # Get file buffer
-    path_buffer = CONSOLE.input("Enter file locations (comma-separated): ").split(",")
+    path_buffer = CONSOLE.input(
+        "Enter file locations (comma-separated): "
+    ).split(",")
     path_buffer = [p.strip() for p in path_buffer]
 
     # Parse kwargs
@@ -79,7 +83,10 @@ def encrypt_targets(
         path: type
         for (path, type) in zip(
             path_buffer,
-            ["file" if os.path.isfile(p) else "directory" for p in path_buffer],
+            [
+                "file" if os.path.isfile(p) else "directory"
+                for p in path_buffer
+            ],
         )
     }
 
@@ -134,7 +141,9 @@ def encrypt_targets(
         # Write encrypted output
         target_name = os.path.split(target)[-1]
 
-        with open(os.path.join(output_folder, target_name + ".crypto"), "wb") as f:
+        with open(
+            os.path.join(output_folder, target_name + ".crypto"), "wb"
+        ) as f:
             f.write(encrypted)
 
         # Teardown
@@ -147,7 +156,9 @@ def encrypt_targets(
         CONSOLE.print("")
 
     # Report completion
-    CONSOLE.log(f"Encryption completed: {len(type_buffer.keys())} targets encrypted.")
+    CONSOLE.log(
+        f"Encryption completed: {len(type_buffer.keys())} targets encrypted."
+    )
 
 
 def decrypt_targets(
@@ -160,12 +171,15 @@ def decrypt_targets(
     # Get password
     password = bytes(
         bytes(
-            CONSOLE.input(prompt="\nEnter password: ", password=True), encoding="utf-8"
+            CONSOLE.input(prompt="\nEnter password: ", password=True),
+            encoding="utf-8",
         )
     )
 
     # Get file buffer
-    path_buffer = CONSOLE.input("Enter file locations (comma-separated): ").split(",")
+    path_buffer = CONSOLE.input(
+        "Enter file locations (comma-separated): "
+    ).split(",")
     path_buffer = [p.strip() for p in path_buffer]
 
     # Parse potential float input
@@ -237,7 +251,9 @@ def decrypt_targets(
             CONSOLE.log("Extracting directory...")
 
             # Extract the compressed target
-            tar = tarfile.open(os.path.join(output_folder, f"{target_name}"), "r:gz")
+            tar = tarfile.open(
+                os.path.join(output_folder, f"{target_name}"), "r:gz"
+            )
             tar.extractall(output_folder)
             tar.close()
 
@@ -269,12 +285,16 @@ def interface(header: bool = True):
     if choice == "1":
         CONSOLE.rule(title="[bold purple]Encrypt targets")
 
-        encrypt_targets(output_folder="./encrypted", iterations=1e6, key_length=32)
+        encrypt_targets(
+            output_folder="./encrypted", iterations=1e6, key_length=32
+        )
 
     elif choice == "2":
         CONSOLE.rule(title="[bold green]Decrypt targets")
 
-        decrypt_targets(output_folder="./decrypted", iterations=1e6, key_length=32)
+        decrypt_targets(
+            output_folder="./decrypted", iterations=1e6, key_length=32
+        )
 
     elif choice == "quit":
         CONSOLE.rule(title="[italic #B0C4DE]Application terminated")
