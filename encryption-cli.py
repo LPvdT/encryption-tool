@@ -18,20 +18,12 @@ install(console=CONSOLE)
 
 
 @click.group()
-# All shared args and options here
-@click.pass_context
-def main(ctx, output_folder: str):
-    # All context objects here
-    ctx.obj["output_folder"] = output_folder
-
-
-@click.main(name="encrypt")
 @click.option(
     "--output_folder",
     "-o",
     type=str,
     default="./encrypted",
-    help="Output folder for encrypted items",
+    help="Output folder for encrypted/decrypted items",
 )
 @click.option(
     "--iterations",
@@ -41,18 +33,38 @@ def main(ctx, output_folder: str):
     help="Number of algorithm iterations",
 )
 @click.option(
+    "--salt",
+    "-s",
+    default=None,
+    help="Custom salt used when encrypting/decrypting",
+)
+@click.pass_context
+def main(
+    ctx,
+    output_folder: str,
+    iterations: Union[int, float],
+    salt: Optional[Union[int, float, str]] = None,
+):
+
+    CONSOLE.rule(title="[bold blue]File Encryption Tool")
+
+    CONSOLE.print(
+        "\n\t[#B0C4DE]Simple tool to encrypt or decrypt your files and folders using the [italic]SHA-2[/italic] algorithm with [italic]512-bit[/italic] hashing."
+    )
+
+    # All context objects here
+    ctx.obj["output_folder"] = output_folder
+    ctx.obj["iterations"] = iterations
+    ctx.obj["salt"] = salt
+
+
+@main.command(name="encrypt")
+@click.option(
     "--key-length",
     "-k",
     type=Union[str, int, float],
     default=32,
     help="Bitrate of the key",
-)
-@click.option(
-    "--salt",
-    "-s",
-    type=Union[str, int, float],
-    default=None,
-    help="Custom value to use as a salt",
 )
 @click.option(
     "--save-key",
@@ -64,12 +76,7 @@ def main(ctx, output_folder: str):
 )
 @click.argument("targets", nargs=-1)
 def encrypt_targets(
-    output_folder: str,
-    iterations: Union[int, float],
-    key_length: Optional[int] = None,
-    salt: Optional[Union[int, float, str]] = None,
-    save_key: bool = False,
-    **kwargs,
+    ctx, key_length: Optional[int] = None, save_key: bool = False, **kwargs,
 ):
     # Get password
     def _auth():
@@ -104,7 +111,7 @@ def encrypt_targets(
         path_buffer = kwargs["targets"]
 
     # Assert output folder existence
-    os.makedirs(output_folder, exist_ok=True)
+    os.makedirs(ctx.obj["output_folder"], exist_ok=True)
 
     # Parse remaining kwargs
     key_file = "" if "key_file" not in kwargs else kwargs["key_file"]
@@ -115,17 +122,17 @@ def encrypt_targets(
     )
 
     # Parse potential float input
-    if isinstance(iterations, float):
-        iterations = int(iterations)
+    if isinstance(ctx.obj["iterations"], float):
+        iterations = int(ctx.obj["iterations"])
 
     # Parse salt
-    if salt:
-        if isinstance(salt, float):
-            salt = bytes(int(salt))
-        elif isinstance(salt, str):
-            salt = bytes(salt, encoding="utf-8")
+    if ctx.obj["salt"]:
+        if isinstance(ctx.obj["salt"], float):
+            salt = bytes(int(ctx.obj["salt"]))
+        elif isinstance(ctx.obj["salt"], str):
+            salt = bytes(ctx.obj["salt"], encoding="utf-8")
         else:
-            salt = salt
+            salt = ctx.obj["salt"]
     else:
         salt = bytes(420)
 
@@ -198,7 +205,8 @@ def encrypt_targets(
         target_name = os.path.split(target)[-1]
 
         with open(
-            os.path.join(output_folder, target_name + ".crypto"), "wb"
+            os.path.join(ctx.obj["output_folder"], target_name + ".crypto"),
+            "wb",
         ) as f:
             f.write(encrypted)
 
@@ -217,19 +225,10 @@ def encrypt_targets(
     )
 
 
-@click.main(name="decrypt")
-@click.option(
-    "--output_folder",
-    "-o",
-    default="./decrypted",
-    help="Output folder for decrypted items",
-)
-@click.option(
-    "--salt", "-s", default=420, help="Salt used when encrypting (if custom)"
-)
+@main.command(name="decrypt")
 @click.argument("targets")
 def decrypt_targets(
-    output_folder: str, salt: Optional[Union[int, float, str]] = None,
+    ctx, output_folder: str, salt: Optional[Union[int, float, str]] = None,
 ):
 
     # Get password
