@@ -1,3 +1,4 @@
 # Folders
 .pytest_cache
 inputs
+__pycache__
