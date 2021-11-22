@@ -2,26 +2,83 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-import base64
 
-import os
-import tarfile
 from rich.console import Console
 from rich.traceback import install
+
 from typing import Union, Optional
+
+import os
+import base64
+import tarfile
+import click
 
 CONSOLE = Console()
 install(console=CONSOLE)
 
 
-def encrypt_targets(
+@click.group()
+@click.option(
+    "--output_folder",
+    "-o",
+    type=str,
+    default="./encrypted",
+    help="Output folder for encrypted/decrypted items",
+)
+@click.option(
+    "--iterations",
+    "-i",
+    type=int,
+    default=int(1e6),
+    help="Number of algorithm iterations",
+)
+@click.option(
+    "--salt",
+    "-s",
+    default=None,
+    help="Custom salt used when encrypting/decrypting",
+)
+@click.pass_context
+def main(
+    ctx,
     output_folder: str,
     iterations: Union[int, float],
-    key_length: Optional[int] = None,
     salt: Optional[Union[int, float, str]] = None,
-    save_key: bool = False,
-    **kwargs,
 ):
+
+    CONSOLE.rule(title="[bold blue]File Encryption Tool")
+
+    CONSOLE.print(
+        "\n\t[#B0C4DE]Simple tool to encrypt or decrypt your files and folders using the [italic]SHA-2[/italic] algorithm with [italic]512-bit[/italic] hashing."
+    )
+
+    # All context objects here
+    ctx.obj["output_folder"] = output_folder
+    ctx.obj["iterations"] = iterations
+    ctx.obj["salt"] = salt
+
+
+@main.command(name="encrypt")
+@click.option(
+    "--key-length",
+    "-k",
+    type=Union[str, int, float],
+    default=32,
+    help="Bitrate of the key",
+)
+@click.option(
+    "--save-key",
+    "-S",
+    type=bool,
+    default=False,
+    is_flag=True,
+    help="Store key file",
+)
+@click.argument("targets", nargs=-1)
+def encrypt_targets(
+    ctx, key_length: Optional[int] = None, save_key: bool = False, **kwargs,
+):
+    # Get password
     def _auth():
         password = bytes(
             CONSOLE.input(prompt="\nEnter password: ", password=True),
@@ -45,12 +102,18 @@ def encrypt_targets(
             password, verification = _auth()
 
     # Get file buffer
-    path_buffer = CONSOLE.input(
-        "Enter file locations (comma-separated): "
-    ).split(",")
-    path_buffer = [p.strip() for p in path_buffer]
+    if not "targets" in kwargs:
+        path_buffer = CONSOLE.input(
+            "Enter file locations (comma-separated): "
+        ).split(",")
+        path_buffer = [p.strip() for p in path_buffer]
+    else:
+        path_buffer = kwargs["targets"]
 
-    # Parse kwargs
+    # Assert output folder existence
+    os.makedirs(ctx.obj["output_folder"], exist_ok=True)
+
+    # Parse remaining kwargs
     key_file = "" if "key_file" not in kwargs else kwargs["key_file"]
     key_file = (
         os.path.join(key_file, "keyfile")
@@ -59,17 +122,17 @@ def encrypt_targets(
     )
 
     # Parse potential float input
-    if isinstance(iterations, float):
-        iterations = int(iterations)
+    if isinstance(ctx.obj["iterations"], float):
+        iterations = int(ctx.obj["iterations"])
 
     # Parse salt
-    if salt:
-        if isinstance(salt, float):
-            salt = bytes(int(salt))
-        elif isinstance(salt, str):
-            salt = bytes(salt, encoding="utf-8")
+    if ctx.obj["salt"]:
+        if isinstance(ctx.obj["salt"], float):
+            salt = bytes(int(ctx.obj["salt"]))
+        elif isinstance(ctx.obj["salt"], str):
+            salt = bytes(ctx.obj["salt"], encoding="utf-8")
         else:
-            salt = salt
+            salt = ctx.obj["salt"]
     else:
         salt = bytes(420)
 
@@ -142,7 +205,8 @@ def encrypt_targets(
         target_name = os.path.split(target)[-1]
 
         with open(
-            os.path.join(output_folder, target_name + ".crypto"), "wb"
+            os.path.join(ctx.obj["output_folder"], target_name + ".crypto"),
+            "wb",
         ) as f:
             f.write(encrypted)
 
@@ -161,11 +225,10 @@ def encrypt_targets(
     )
 
 
+@main.command(name="decrypt")
+@click.argument("targets")
 def decrypt_targets(
-    output_folder: str,
-    iterations: Union[int, float],
-    key_length: Optional[int] = None,
-    salt: Optional[Union[int, float, str]] = None,
+    ctx, output_folder: str, salt: Optional[Union[int, float, str]] = None,
 ):
 
     # Get password
@@ -182,9 +245,8 @@ def decrypt_targets(
     ).split(",")
     path_buffer = [p.strip() for p in path_buffer]
 
-    # Parse potential float input
-    if isinstance(iterations, float):
-        iterations = int(iterations)
+    # Assert output folder existence
+    os.makedirs(output_folder, exist_ok=True)
 
     # Parse salt
     if salt:
@@ -197,24 +259,10 @@ def decrypt_targets(
     else:
         salt = bytes(420)
 
-    # Parse key length
-    if key_length:
-        if not key_length <= ((2 ** 32) - 1) * hashes.SHA512().digest_size:
-            raise ValueError("key_length is set too large.")
-
     # Init Key Derivative Function
-    if not iterations < int(1e5):
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA512(),
-            length=32,
-            salt=salt,
-            iterations=iterations,
-            backend=default_backend(),
-        )
-    else:
-        CONSOLE.log(
-            f"[bold red]Warning:[/bold red] Iterations of {iterations} is low. Increase the amount to help migigate brute-force attempts."
-        )
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA512(), salt=salt, backend=default_backend(),
+    )
 
     # Derive key
     key = base64.urlsafe_b64encode(kdf.derive(password))
@@ -305,11 +353,11 @@ def interface(header: bool = True):
         interface(header=False)
 
 
+def start():
+    main(obj=dict)
+
+
 if __name__ == "__main__":
 
-    # Ensure folder existence
-    os.makedirs("./decrypted", exist_ok=True)
-    os.makedirs("./encrypted", exist_ok=True)
-
     # Start application
-    interface()
+    start()
