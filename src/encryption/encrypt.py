@@ -21,14 +21,22 @@ class Encryptor(CryptoEngine):
         output_folder: str,
         iterations: Union[int, float],
         salt: Optional[Union[int, float, str]] = None,
-        key_length: Optional[int] = None,
         save_key: bool = False,
         **kwargs,
     ):
+        # Get file buffer
+        if not "targets" in kwargs:
+            path_buffer = self.CONSOLE.input(
+                "Enter file locations (comma-separated): "
+            ).split(",")
+            path_buffer = [p.strip() for p in path_buffer]
+        else:
+            path_buffer = kwargs["targets"]
+
         # Get password
         def _auth():
             password = bytes(
-                self.CONSOLE.input(prompt="\nEnter password: ", password=True),
+                self.CONSOLE.input(prompt="Enter password: ", password=True),
                 encoding="utf-8",
             )
 
@@ -47,18 +55,6 @@ class Encryptor(CryptoEngine):
                     "[bold red]Error:[/bold red] [italic]Passwords do not match.[/italic]"
                 )
                 password, verification = _auth()
-
-        # Get file buffer
-        if not "targets" in kwargs:
-            path_buffer = self.CONSOLE.input(
-                "Enter file locations (comma-separated): "
-            ).split(",")
-            path_buffer = [p.strip() for p in path_buffer]
-        else:
-            path_buffer = kwargs["targets"]
-
-        # Assert output folder existence
-        os.makedirs(output_folder, exist_ok=True)
 
         # Parse remaining kwargs
         key_file = "" if "key_file" not in kwargs else kwargs["key_file"]
@@ -83,11 +79,6 @@ class Encryptor(CryptoEngine):
         else:
             salt = bytes(420)
 
-        # Parse key length
-        if key_length:
-            if not key_length <= ((2 ** 32) - 1) * hashes.SHA512().digest_size:
-                raise ValueError("key_length is set too large.")
-
         # Infer target types of paths in buffer
         type_buffer = {
             path: type
@@ -104,7 +95,7 @@ class Encryptor(CryptoEngine):
         if not iterations < int(1e5):
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA512(),
-                length=key_length,
+                length=32,
                 salt=salt,
                 iterations=iterations,
                 backend=default_backend(),
@@ -150,6 +141,8 @@ class Encryptor(CryptoEngine):
 
             # Write encrypted output
             target_name = os.path.split(target)[-1]
+
+            os.makedirs(output_folder, exist_ok=True)
 
             with open(
                 os.path.join(output_folder, target_name + ".crypto"), "wb",
