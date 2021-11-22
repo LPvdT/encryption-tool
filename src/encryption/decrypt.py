@@ -19,25 +19,27 @@ class Decryptor(CryptoEngine):
     def decrypt_targets(
         self,
         output_folder: str,
+        iterations: Union[int, float],
         salt: Optional[Union[int, float, str]] = None,
+        **kwargs,
     ):
+
+        # Get file buffer
+        if not "targets" in kwargs:
+            path_buffer = self.CONSOLE.input(
+                "Enter file locations (comma-separated): "
+            ).split(",")
+            path_buffer = [p.strip() for p in path_buffer]
+        else:
+            path_buffer = kwargs["targets"]
 
         # Get password
         password = bytes(
             bytes(
-                self.CONSOLE.input(prompt="\nEnter password: ", password=True),
+                self.CONSOLE.input(prompt="Enter password: ", password=True),
                 encoding="utf-8",
             )
         )
-
-        # Get file buffer
-        path_buffer = self.CONSOLE.input(
-            "Enter file locations (comma-separated): "
-        ).split(",")
-        path_buffer = [p.strip() for p in path_buffer]
-
-        # Assert output folder existence
-        os.makedirs(output_folder, exist_ok=True)
 
         # Parse salt
         if salt:
@@ -51,9 +53,18 @@ class Decryptor(CryptoEngine):
             salt = bytes(420)
 
         # Init Key Derivative Function
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA512(), salt=salt, backend=default_backend(),
-        )
+        if not iterations < int(1e5):
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA512(),
+                length=32,
+                iterations=iterations,
+                salt=salt,
+                backend=default_backend(),
+            )
+        else:
+            self.CONSOLE.log(
+                f"[bold red]Warning:[/bold red] Iterations of {iterations} is low. Increase the amount to help migigate brute-force attempts."
+            )
 
         # Derive key
         key = base64.urlsafe_b64encode(kdf.derive(password))
@@ -81,6 +92,8 @@ class Decryptor(CryptoEngine):
 
             # Write decrypted output
             target_name = os.path.splitext(os.path.split(target)[-1])[0]
+
+            os.makedirs(output_folder, exist_ok=True)
 
             with open(os.path.join(output_folder, target_name), "wb") as f:
                 f.write(decrypted)
