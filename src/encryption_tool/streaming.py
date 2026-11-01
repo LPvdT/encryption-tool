@@ -48,14 +48,13 @@ def _nonce(prefix: bytes, counter: int) -> bytes:
 
 def _temporary_output(destination: Path) -> tuple[BinaryIO, Path]:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    handle = tempfile.NamedTemporaryFile(
-        mode="wb",
+    descriptor, filename = tempfile.mkstemp(
         prefix=f".{destination.name}.",
         suffix=".tmp",
         dir=destination.parent,
-        delete=False,
     )
-    return handle, Path(handle.name)
+    handle = os.fdopen(descriptor, "wb")
+    return handle, Path(filename)
 
 
 def _publish(temporary: Path, destination: Path, overwrite: bool) -> None:
