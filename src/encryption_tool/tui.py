@@ -91,14 +91,14 @@ class EncryptionApp(App[None]):
                 Static("Authenticated encryption · file protection · integrity",classes="subtle"),
                 Static("ETK2 / ETK3 · ETFS · Argon2id · AES-256-GCM / ChaCha20-Poly1305"))
         elif name in ("encrypt","decrypt"):
-            root.mount(Static(name.upper(),classes="heading"),
+            await root.mount(Static(name.upper(),classes="heading"),
                 Label("Input text"),TextArea(id="text-input"),
                 Label("Password"),Input(password=True,id="text-password"),
                 Label("Algorithm"),Select([("AES-256-GCM","AES-256-GCM"),("ChaCha20-Poly1305","ChaCha20-Poly1305")],value=self.config.default_algorithm,id="text-algorithm"),
                 Label("Output file (optional; otherwise result preview)"),Input(id="text-path"),
                 Button("Run",id=f"run-{name}"))
         elif name=="files":
-            root.mount(Static("FILE / DIRECTORY / BATCH OPERATIONS",classes="heading"),
+            await root.mount(Static("FILE / DIRECTORY / BATCH OPERATIONS",classes="heading"),
                 Select([("Encrypt file","encrypt-file"),("Decrypt file","decrypt-file"),("Encrypt directory","encrypt-dir"),("Decrypt directory","decrypt-dir"),("Batch encrypt files in source directory","batch-encrypt"),("Batch decrypt files in source directory","batch-decrypt")],value="encrypt-file",id="file-mode"),
                 Label("Source file or directory"),Input(id="file-source"),
                 Label("Destination file or directory"),Input(id="file-destination"),
@@ -106,12 +106,12 @@ class EncryptionApp(App[None]):
                 Label("Algorithm"),Select([("AES-256-GCM","AES-256-GCM"),("ChaCha20-Poly1305","ChaCha20-Poly1305")],value=self.config.default_algorithm,id="file-algorithm"),
                 Button("Start",id="run-files"))
         elif name=="keys":
-            root.mount(Static("KEY MANAGEMENT",classes="heading"),
+            await root.mount(Static("KEY MANAGEMENT",classes="heading"),
                 Label("Key file path"),Input(id="key-path",placeholder="~/.config/encryption-tool/keys/my-key.bin"),
                 Button("Generate 256-bit key",id="key-generate"),Button("Inspect key fingerprint",id="key-inspect"),
                 Static("Raw keys are stored as 32 random bytes. Protect the file with OS permissions/ACLs and backups.",classes="subtle"))
         elif name=="utilities":
-            root.mount(Static("HASH / HMAC / PASSWORD",classes="heading"),
+            await root.mount(Static("HASH / HMAC / PASSWORD",classes="heading"),
                 Select([("Hash file","hash"),("Generate password","password"),("HMAC file","hmac"),("Verify HMAC","verify")],value="hash",id="util-mode"),
                 Label("File path"),Input(id="util-path"),
                 Label("Key file for HMAC"),Input(id="util-key"),
@@ -120,13 +120,13 @@ class EncryptionApp(App[None]):
                 Select([(x,x) for x in HASH_ALGORITHMS],value="sha256",id="util-algorithm"),
                 Button("Run utility",id="run-utilities"))
         elif name=="inspect":
-            root.mount(Static("FILE INSPECTION",classes="heading"),Label("Encrypted file"),Input(id="inspect-path"),Button("Inspect header",id="run-inspect"),
+            await root.mount(Static("FILE INSPECTION",classes="heading"),Label("Encrypted file"),Input(id="inspect-path"),Button("Inspect header",id="run-inspect"),
                 Static("Metadata inspection does not authenticate ciphertext; successful decryption is required to verify its tag.",classes="subtle"))
         elif name=="history":
-            root.mount(Static("RECENT OPERATIONS",classes="heading"),
+            await root.mount(Static("RECENT OPERATIONS",classes="heading"),
                 Static("\n".join(f"{r.get('timestamp','')}  {r.get('operation','')}  {r.get('status','')}" for r in read_history()) or "No operations recorded."))
         elif name=="settings":
-            root.mount(Static("CONFIGURATION",classes="heading"),
+            await root.mount(Static("CONFIGURATION",classes="heading"),
                 Static("Config file: platform config directory / encryption-tool/config.toml"),
                 Static(f"Theme: {self.config.theme} · Chunk size: {self.config.chunk_size:,} · Algorithm: {self.config.default_algorithm}"))
         self._set("#result",f"READY · {name.upper()}")
