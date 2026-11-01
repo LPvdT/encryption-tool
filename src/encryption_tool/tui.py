@@ -11,6 +11,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import (
     Button,
+    DirectoryTree,
     Footer,
     Header,
     Input,
@@ -21,7 +22,7 @@ from textual.widgets import (
     TextArea,
 )
 
-from encryption_tool.config import load_config
+from encryption_tool.config import AppConfig, config_path, load_config, save_config
 from encryption_tool.crypto import AlgorithmType, decrypt_data, encrypt_data
 from encryption_tool.history import read_history, record_operation
 from encryption_tool.keys import generate_key, inspect_key, load_key
@@ -55,6 +56,12 @@ TextArea { height: 6; }
 Button { margin: 1 0; }
 #result { border: round #26364a; padding: 1; min-height: 3; }
 #progress { margin: 1 0; }
+DirectoryTree { height: 14; border: round #334155; margin: 1 0; }
+.light-theme { background: #f8fafc; color: #0f172a; }
+.light-theme #sidebar { background: #e2e8f0; border-right: solid #cbd5e1; }
+.light-theme #content { background: #f8fafc; }
+.light-theme Input, .light-theme Select, .light-theme TextArea { background: #ffffff; color: #0f172a; border: round #94a3b8; }
+.light-theme #result { border: round #cbd5e1; }
 """
 
 
@@ -115,6 +122,7 @@ class EncryptionApp(App[None]):
     async def on_mount(self) -> None:
         await self.push_screen(Workspace())
         await self.show_workspace("dashboard")
+        self._apply_theme()
 
     def _set(self, selector: str, value: str) -> None:
         self.screen.query_one(selector, Static).update(value)
@@ -124,30 +132,50 @@ class EncryptionApp(App[None]):
 
     async def show_workspace(self, name: str) -> None:
         workspace = self.screen
+        workspace.remove_class("light-theme")
+        if self.config.theme == "light":
+            workspace.add_class("light-theme")
         root = workspace.query_one("#workspace", Static)
         await root.remove_children()
         if name == "dashboard":
             await root.mount(
                 Static("CRYPT — TERMINAL SECURITY TOOLKIT", classes="heading"),
-                Static("Authenticated encryption · file protection · integrity", classes="subtle"),
-                Static("ETK2 / ETK3 · ETFS · Argon2id · AES-256-GCM / ChaCha20-Poly1305"),
+                Static("Password-based text encryption and authenticated file protection", classes="subtle"),
+                Static("Text payloads: ETK2 · Encrypted files: ETFS"),
+                Static("Algorithms: AES-256-GCM and ChaCha20-Poly1305"),
+                Static("Password-based key derivation: Argon2id"),
+                Static("ETK3 raw-key payloads are available through the CLI/API, not these TUI panels."),
             )
-        elif name in ("encrypt", "decrypt"):
+        elif name == "encrypt":
             await root.mount(
-                Static(name.upper(), classes="heading"),
-                Label("Input text"),
+                Static("TEXT ENCRYPTION · ETK2", classes="heading"),
+                Label("Plaintext"),
                 TextArea(id="text-input"),
                 Label("Password"),
                 Input(password=True, id="text-password"),
                 Label("Algorithm"),
                 Select(
                     [("AES-256-GCM", "AES-256-GCM"), ("ChaCha20-Poly1305", "ChaCha20-Poly1305")],
-                    value=self.config.default_algorithm,
-                    id="text-algorithm",
+                    value=self.config.default_algorithm, id="text-algorithm",
                 ),
-                Label("Output file (optional; otherwise result preview)"),
+                Label("Output file (optional; otherwise ciphertext is shown as hex)"),
                 Input(id="text-path"),
-                Button("Run", id=f"run-{name}"),
+                Button("Encrypt", id="run-encrypt"),
+            )
+        elif name == "decrypt":
+            await root.mount(
+                Static("DECRYPT · ETK2 TEXT OR ETFS FILE", classes="heading"),
+                Label("Encrypted file (ETFS or ETK2)"),
+                Input(id="decrypt-file", placeholder="/path/to/encrypted-file.etfs"),
+                Label("Browse from current directory; select an encrypted file"),
+                DirectoryTree(Path.cwd(), id="decrypt-tree"),
+                Label("Or paste ETK2 hexadecimal ciphertext"),
+                TextArea(id="decrypt-hex"),
+                Label("Password"),
+                Input(password=True, id="decrypt-password"),
+                Label("Output file (required for ETFS; optional for ETK2)"),
+                Input(id="decrypt-output"),
+                Button("Decrypt", id="run-decrypt"),
             )
         elif name == "files":
             await root.mount(
@@ -240,12 +268,25 @@ class EncryptionApp(App[None]):
             )
         elif name == "settings":
             await root.mount(
-                Static("CONFIGURATION", classes="heading"),
-                Static("Config file: platform config directory / encryption-tool/config.toml"),
-                Static(
-                    f"Theme: {self.config.theme} · Chunk size: {self.config.chunk_size:,} · "
-                    f"Algorithm: {self.config.default_algorithm}"
+                Static("APPLICATION SETTINGS", classes="heading"),
+                Static(f"Configuration file: {config_path()}"),
+                Label("Theme"),
+                Select([("Dark", "dark"), ("Light", "light")], value=self.config.theme, id="settings-theme"),
+                Label("Default encryption algorithm"),
+                Select(
+                    [("AES-256-GCM", "AES-256-GCM"), ("ChaCha20-Poly1305", "ChaCha20-Poly1305")],
+                    value=self.config.default_algorithm, id="settings-algorithm",
                 ),
+                Label("File encryption chunk size (bytes; 4,096–16,777,216)"),
+                Input(value=str(self.config.chunk_size), id="settings-chunk"),
+                Label("History entries to retain (0–10,000)"),
+                Input(value=str(self.config.history_limit), id="settings-history"),
+                Horizontal(
+                    Button("Save settings", id="settings-save"),
+                    Button("Reload from disk", id="settings-reload"),
+                    Button("Reset defaults", id="settings-reset"),
+                ),
+                Static("Changes are applied after saving.", classes="subtle"),
             )
         self._set("#result", f"READY · {name.upper()}")
         workspace.query_one("#progress", ProgressBar).update(progress=0, total=100)
@@ -255,8 +296,20 @@ class EncryptionApp(App[None]):
         if ident == "cancel":
             self.cancel_operation()
             return
-        if ident == "run-encrypt" or ident == "run-decrypt":
-            self._text_operation("encrypt" if ident == "run-encrypt" else "decrypt")
+        if ident == "run-encrypt":
+            self._text_operation("encrypt")
+            return
+        if ident == "run-decrypt":
+            self._decrypt_operation()
+            return
+        if ident == "settings-save":
+            self._save_settings()
+            return
+        if ident == "settings-reload":
+            self._reload_settings()
+            return
+        if ident == "settings-reset":
+            self._reset_settings()
             return
         if ident == "run-files":
             self._file_operation()
@@ -293,6 +346,100 @@ class EncryptionApp(App[None]):
                 )
             except Exception as exc:
                 self._set("#result", f"Inspection failed: {exc}")
+
+    def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
+        self.screen.query_one("#decrypt-file", Input).value = str(event.path)
+
+    def _apply_theme(self) -> None:
+        if self.screen.is_mounted:
+            self.screen.remove_class("light-theme")
+            if self.config.theme == "light":
+                self.screen.add_class("light-theme")
+
+    def _save_settings(self) -> None:
+        try:
+            updated = AppConfig(
+                theme=str(self.screen.query_one("#settings-theme", Select).value),
+                chunk_size=int(self.screen.query_one("#settings-chunk", Input).value),
+                default_algorithm=cast(
+                    AlgorithmType, self.screen.query_one("#settings-algorithm", Select).value
+                ),
+                history_limit=int(self.screen.query_one("#settings-history", Input).value),
+            )
+            save_config(updated)
+            self.config = updated
+            self._apply_theme()
+            self._set("#result", f"Settings saved: {config_path()}")
+        except (ValueError, OSError) as exc:
+            self._set("#result", f"Settings not saved: {exc}")
+
+    def _reload_settings(self) -> None:
+        try:
+            self.config = load_config()
+            self.screen.query_one("#settings-theme", Select).value = self.config.theme
+            self.screen.query_one("#settings-algorithm", Select).value = self.config.default_algorithm
+            self.screen.query_one("#settings-chunk", Input).value = str(self.config.chunk_size)
+            self.screen.query_one("#settings-history", Input).value = str(self.config.history_limit)
+            self._apply_theme()
+            self._set("#result", "Settings reloaded from disk.")
+        except (ValueError, OSError) as exc:
+            self._set("#result", f"Could not reload settings: {exc}")
+
+    def _reset_settings(self) -> None:
+        defaults = AppConfig()
+        self.screen.query_one("#settings-theme", Select).value = defaults.theme
+        self.screen.query_one("#settings-algorithm", Select).value = defaults.default_algorithm
+        self.screen.query_one("#settings-chunk", Input).value = str(defaults.chunk_size)
+        self.screen.query_one("#settings-history", Input).value = str(defaults.history_limit)
+        self._set("#result", "Defaults loaded; save settings to persist them.")
+
+    def _decrypt_operation(self) -> None:
+        source_text = self.screen.query_one("#decrypt-file", Input).value.strip()
+        password = self.screen.query_one("#decrypt-password", Input).value
+        output_text = self.screen.query_one("#decrypt-output", Input).value.strip()
+        if source_text:
+            source = Path(source_text).expanduser()
+            if not source.is_file():
+                self._set("#result", f"Encrypted file not found: {source}")
+                return
+            try:
+                with source.open("rb") as stream:
+                    magic = stream.read(4)
+                if magic == b"ETFS":
+                    if not output_text:
+                        self._set("#result", "Choose an output file for ETFS decryption.")
+                        return
+                    self.file_decrypt_worker(str(source), output_text, password)
+                    return
+                plaintext = decrypt_data(source.read_bytes(), password)
+                self._write_or_preview(plaintext, output_text)
+            except Exception as exc:
+                self._set("#result", f"{type(exc).__name__}: {exc}")
+            return
+        ciphertext = self.screen.query_one("#decrypt-hex", TextArea).text.strip()
+        try:
+            self._write_or_preview(decrypt_data(bytes.fromhex(ciphertext), password), output_text)
+        except Exception as exc:
+            self._set("#result", f"{type(exc).__name__}: {exc}")
+
+    def _write_or_preview(self, plaintext: bytes, output_text: str) -> None:
+        if output_text:
+            target = Path(output_text).expanduser()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("xb") as stream:
+                stream.write(plaintext)
+            self._set("#result", f"Authenticated plaintext written to {target}")
+        else:
+            self._set("#result", f"Authenticated plaintext: {plaintext[:500]!r}")
+
+    @work(thread=True, exclusive=True)
+    def file_decrypt_worker(self, source: str, destination: str, password: str) -> None:
+        try:
+            result = decrypt_file(source, destination, password, cancel=self.cancel_event)
+            self.app.call_from_thread(self._set, "#result", f"Decrypted file written to {result}")
+            self.app.call_from_thread(record_operation, "decrypt-file", source, destination, "success")
+        except Exception as exc:
+            self.app.call_from_thread(self._set, "#result", f"{type(exc).__name__}: {exc}")
 
     def _text_operation(self, mode: str) -> None:
         text = self.screen.query_one("#text-input", TextArea).text
