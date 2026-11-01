@@ -62,7 +62,7 @@ class Workspace(Screen[None]):
                 yield ProgressBar(total=100,show_eta=False,id="progress")
                 yield Button("Cancel current operation",id="cancel")
         yield Footer()
-    def on_button_pressed(self,event:Button.Pressed)->None:
+    async def on_button_pressed(self,event:Button.Pressed)->None:
         ident=event.button.id or ""
         if ident.startswith("nav-"):
             await self.app.show_workspace(ident[4:])
@@ -80,14 +80,14 @@ class EncryptionApp(App[None]):
         self.current_worker=None
     def on_mount(self)->None:
         self.push_screen(Workspace())
-        self.show_workspace("dashboard")
+        self.run_worker(self.show_workspace("dashboard"))
     def _set(self,selector:str,value:str)->None:
         self.query_one(selector,Static).update(value)
-    def show_workspace(self,name:str)->None:
+    async def show_workspace(self,name:str)->None:
         root=self.query_one("#workspace",Static)
-        root.remove_children()
+        await root.remove_children()
         if name=="dashboard":
-            root.mount(Static("CRYPT — TERMINAL SECURITY TOOLKIT",classes="heading"),
+            await root.mount(Static("CRYPT — TERMINAL SECURITY TOOLKIT",classes="heading"),
                 Static("Authenticated encryption · file protection · integrity",classes="subtle"),
                 Static("ETK2 / ETK3 · ETFS · Argon2id · AES-256-GCM / ChaCha20-Poly1305"))
         elif name in ("encrypt","decrypt"):
@@ -224,10 +224,10 @@ class EncryptionApp(App[None]):
             self.app.call_from_thread(self._set,"#result",result)
             self.app.call_from_thread(record_operation,mode,path,"","success")
         except Exception as exc:self.app.call_from_thread(self._set,"#result",f"{type(exc).__name__}: {exc}")
-    def action_go_dashboard(self)->None:self.show_workspace("dashboard")
-    def action_go_encrypt(self)->None:self.show_workspace("encrypt")
-    def action_go_decrypt(self)->None:self.show_workspace("decrypt")
-    def action_go_history(self)->None:self.show_workspace("history")
+    async def action_go_dashboard(self)->None: await self.show_workspace("dashboard")
+    async def action_go_encrypt(self)->None: await self.show_workspace("encrypt")
+    async def action_go_decrypt(self)->None: await self.show_workspace("decrypt")
+    async def action_go_history(self)->None: await self.show_workspace("history")
 
 
 def main()->None:
