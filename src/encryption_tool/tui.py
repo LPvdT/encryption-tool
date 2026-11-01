@@ -168,7 +168,8 @@ class EncryptionApp(App[None]):
                 Label("Algorithm"),
                 Select(
                     [("AES-256-GCM", "AES-256-GCM"), ("ChaCha20-Poly1305", "ChaCha20-Poly1305")],
-                    value=self.config.default_algorithm, id="text-algorithm",
+                    value=self.config.default_algorithm,
+                    id="text-algorithm",
                 ),
                 Label("Output file (optional; otherwise ciphertext is shown as hex)"),
                 Input(id="text-path"),
@@ -291,7 +292,8 @@ class EncryptionApp(App[None]):
                 Label("Default encryption algorithm"),
                 Select(
                     [("AES-256-GCM", "AES-256-GCM"), ("ChaCha20-Poly1305", "ChaCha20-Poly1305")],
-                    value=self.config.default_algorithm, id="settings-algorithm",
+                    value=self.config.default_algorithm,
+                    id="settings-algorithm",
                 ),
                 Label("File encryption chunk size (bytes; 4,096–16,777,216)"),
                 Input(value=str(self.config.chunk_size), id="settings-chunk"),
@@ -397,9 +399,9 @@ class EncryptionApp(App[None]):
         try:
             self.config = load_config()
             self.screen.query_one("#settings-theme", Select).value = self.config.theme
-            self.screen.query_one("#settings-algorithm", Select).value = (
-                self.config.default_algorithm
-            )
+            self.screen.query_one(
+                "#settings-algorithm", Select
+            ).value = self.config.default_algorithm
             self.screen.query_one("#settings-chunk", Input).value = str(self.config.chunk_size)
             self.screen.query_one("#settings-history", Input).value = str(self.config.history_limit)
             self._apply_theme()
