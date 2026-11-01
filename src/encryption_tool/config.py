@@ -59,9 +59,9 @@ def save_config(config: AppConfig, path: str | Path | None = None) -> Path:
     target = Path(path) if path else config_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     content = (
-        f'theme = "{config.theme}"\\n'
+        f'theme = "{config.theme}"\n'
         f"chunk_size = {config.chunk_size}\\n"
-        f'default_algorithm = "{config.default_algorithm}"\\n'
+        f'default_algorithm = "{config.default_algorithm}"\n'
         f"history_limit = {config.history_limit}\\n"
     )
     temporary = target.with_name(f".{target.name}.tmp")
