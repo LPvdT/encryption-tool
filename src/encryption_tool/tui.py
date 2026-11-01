@@ -60,7 +60,11 @@ DirectoryTree { height: 14; border: round #334155; margin: 1 0; }
 .light-theme { background: #f8fafc; color: #0f172a; }
 .light-theme #sidebar { background: #e2e8f0; border-right: solid #cbd5e1; }
 .light-theme #content { background: #f8fafc; }
-.light-theme Input, .light-theme Select, .light-theme TextArea { background: #ffffff; color: #0f172a; border: round #94a3b8; }
+.light-theme Input, .light-theme Select, .light-theme TextArea {
+    background: #ffffff;
+    color: #0f172a;
+    border: round #94a3b8;
+}
 .light-theme #result { border: round #cbd5e1; }
 """
 
@@ -143,11 +147,16 @@ class EncryptionApp(App[None]):
         if name == "dashboard":
             await root.mount(
                 Static("CRYPT — TERMINAL SECURITY TOOLKIT", classes="heading"),
-                Static("Password-based text encryption and authenticated file protection", classes="subtle"),
+                Static(
+                    "Password-based text encryption and authenticated file protection",
+                    classes="subtle",
+                ),
                 Static("Text payloads: ETK2 · Encrypted files: ETFS"),
                 Static("Algorithms: AES-256-GCM and ChaCha20-Poly1305"),
                 Static("Password-based key derivation: Argon2id"),
-                Static("ETK3 raw-key payloads are available through the CLI/API, not these TUI panels."),
+                Static(
+                    "ETK3 raw-key payloads are available through the CLI/API, not these TUI panels."
+                ),
             )
         elif name == "encrypt":
             await root.mount(
@@ -274,7 +283,11 @@ class EncryptionApp(App[None]):
                 Static("APPLICATION SETTINGS", classes="heading"),
                 Static(f"Configuration file: {config_path()}"),
                 Label("Theme"),
-                Select([("Dark", "dark"), ("Light", "light")], value=self.config.theme, id="settings-theme"),
+                Select(
+                    [("Dark", "dark"), ("Light", "light")],
+                    value=self.config.theme,
+                    id="settings-theme",
+                ),
                 Label("Default encryption algorithm"),
                 Select(
                     [("AES-256-GCM", "AES-256-GCM"), ("ChaCha20-Poly1305", "ChaCha20-Poly1305")],
@@ -329,7 +342,11 @@ class EncryptionApp(App[None]):
             try:
                 self._set(
                     "#result",
-                    str(inspect_key(Path(self.screen.query_one("#key-path", Input).value).expanduser())),
+                    str(
+                        inspect_key(
+                            Path(self.screen.query_one("#key-path", Input).value).expanduser()
+                        )
+                    ),
                 )
             except Exception as exc:
                 self._set("#result", f"Key inspection failed: {exc}")
@@ -380,7 +397,9 @@ class EncryptionApp(App[None]):
         try:
             self.config = load_config()
             self.screen.query_one("#settings-theme", Select).value = self.config.theme
-            self.screen.query_one("#settings-algorithm", Select).value = self.config.default_algorithm
+            self.screen.query_one("#settings-algorithm", Select).value = (
+                self.config.default_algorithm
+            )
             self.screen.query_one("#settings-chunk", Input).value = str(self.config.chunk_size)
             self.screen.query_one("#settings-history", Input).value = str(self.config.history_limit)
             self._apply_theme()
@@ -440,7 +459,9 @@ class EncryptionApp(App[None]):
         try:
             result = decrypt_file(source, destination, password, cancel=self.cancel_event)
             self.app.call_from_thread(self._set, "#result", f"Decrypted file written to {result}")
-            self.app.call_from_thread(self._self._record_operation, "decrypt-file", source, destination, "success")
+            self.app.call_from_thread(
+                self._record_operation, "decrypt-file", source, destination, "success"
+            )
         except Exception as exc:
             self.app.call_from_thread(self._set, "#result", f"{type(exc).__name__}: {exc}")
 
