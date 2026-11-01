@@ -1,66 +1,28 @@
 [project]
 name = "encryption-tool"
-version = "2.0.0"
-description = "A secure, modern file and text encryption utility with a sleek TUI."
+version = "2.2.0"
+description = "A terminal toolkit for authenticated encryption and file integrity."
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.14"
 license = { text = "MIT" }
-authors = [
-    { name = "LPvdT" },
-]
-classifiers = [
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.14",
-    "Topic :: Security :: Cryptography",
-]
-dependencies = [
-    "cryptography>=50.0.2",
-    "rich>=15.0.0",
-    "textual>=8.2.8",
-]
-
+authors = [{ name = "LPvdT" }]
+classifiers = ["License :: OSI Approved :: MIT License","Operating System :: OS Independent","Programming Language :: Python :: 3","Programming Language :: Python :: 3.11","Programming Language :: Python :: 3.12","Programming Language :: Python :: 3.13","Topic :: Security :: Cryptography"]
+dependencies = ["cryptography>=50.0.2","rich>=15.0.0","textual>=8.2.8"]
 [build-system]
-requires = [
-    "hatchling>=1.25.0",
-]
+requires = ["hatchling>=1.25.0"]
 build-backend = "hatchling.build"
-
 [project.scripts]
 encrypt-tool = "encryption_tool.__main__:main"
-
+encrypt-tool-cli = "encryption_tool.cli:main"
 [dependency-groups]
-dev = [
-    "prek>=0.5.9",
-    "pyrefly>=1.4.0",
-    "pytest>=8.0.0",
-    "ruff>=0.4.0",
-]
-
+dev = ["prek>=0.5.9","pyrefly>=1.4.0","pytest>=8.0.0","ruff>=0.4.0"]
 [tool.hatch.build.targets.wheel]
-packages = [
-    "src/encryption_tool",
-]
-
+packages = ["src/encryption_tool"]
 [tool.ruff]
-target-version = "py312"
-line-length = 88
-
+target-version = "py311"
+line-length = 100
 [tool.ruff.lint]
-select = [
-    "B",   # flake8-bugbear
-    "E",   # pycodestyle errors
-    "F",   # pyflakes
-    "I",   # isort
-    "SIM", # flake8-simplify
-    "UP",  # pyupgrade
-]
-ignore = [
-]
-
+select = ["B","E","F","I","SIM","UP"]
 [tool.pyrefly]
 preset = "default"
-src = [
-    "src",
-]
+src = ["src"]
