@@ -52,7 +52,12 @@ def write_default_config(path: str | Path | None = None) -> Path:
     if target.exists():
         raise FileExistsError(target)
     target.write_text(
-        'theme = "dark"\nchunk_size = 1048576\ndefault_algorithm = "AES-256-GCM"\nhistory_limit = 100\n',
+        (
+            'theme = "dark"\n'
+            "chunk_size = 1048576\n"
+            'default_algorithm = "AES-256-GCM"\n'
+            "history_limit = 100\n"
+        ),
         encoding="utf-8",
     )
     if os.name != "nt":
