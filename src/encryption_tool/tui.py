@@ -1,324 +1,328 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
+from textual import work
 from textual.app import App, ComposeResult
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import (
-    Button,
-    Input,
-    Label,
-    Select,
-    Static,
-    TextArea,
+from textual.widgets import Button, Footer, Header, Input, Label, Select, Static, TextArea
+
+from encryption_tool.crypto import decrypt_data, encrypt_data
+from encryption_tool.streaming import (
+    decrypt_directory,
+    decrypt_file,
+    encrypt_directory,
+    encrypt_file,
 )
+from encryption_tool.utilities import generate_passphrase, hash_file
 
-from encryption_tool.crypto import AlgorithmType, decrypt_data, encrypt_data
+
+THEME = """
+Screen { background: #0b1120; color: #e2e8f0; }
+#shell { width: 100%; height: 1fr; padding: 1 2; }
+.panel { background: #111c2d; border: round #26364a; padding: 1 2; height: auto; }
+.title { color: #38bdf8; text-style: bold; text-align: center; padding: 1 0; }
+.subtle { color: #94a3b8; }
+Label { color: #cbd5e1; margin-top: 1; }
+Input, Select, TextArea { background: #0b1120; border: round #334155; color: #e2e8f0; margin-bottom: 1; }
+TextArea { height: 7; }
+Button { width: 1fr; margin: 1 1 0 0; }
+Button.primary { background: #0369a1; color: white; }
+Button.success { background: #047857; color: white; }
+Button.muted { background: #334155; color: white; }
+#actions { height: auto; }
+#result { height: auto; min-height: 3; border: round #26364a; padding: 1; margin-top: 1; }
+"""
 
 
-class MainMenuScreen(Screen[None]):
-    """Main menu screen to choose between encryption and decryption."""
-
-    CSS = """
-    MainMenuScreen {
-        align: center middle;
-        background: #0f172a;
-    }
-
-    #menu-container {
-        width: 50;
-        height: auto;
-        background: #1e293b;
-        border: solid #334155;
-        border-title-color: #38bdf8;
-        border-title-style: bold;
-        padding: 2 4;
-    }
-
-    .menu-title {
-        color: #38bdf8;
-        text-style: bold;
-        text-align: center;
-        margin-bottom: 2;
-    }
-
-    Button {
-        width: 100%;
-        margin-top: 1;
-        margin-bottom: 1;
-        text-style: bold;
-    }
-
-    #btn-goto-encrypt {
-        background: #0284c7;
-        color: #f8fafc;
-    }
-    #btn-goto-encrypt:hover {
-        background: #0ea5e9;
-    }
-
-    #btn-goto-decrypt {
-        background: #16a34a;
-        color: #f8fafc;
-    }
-    #btn-goto-decrypt:hover {
-        background: #22c55e;
-    }
-
-    #btn-exit {
-        background: #475569;
-        color: #f8fafc;
-    }
-    #btn-exit:hover {
-        background: #64748b;
-    }
-    """
-
+class Dashboard(Screen[None]):
     def compose(self) -> ComposeResult:
-        with Vertical(id="menu-container") as container:
-            container.border_title = "🔒 SECURE TOOLKIT"
-            yield Static("Select an Operation Mode", classes="menu-title")
-            yield Button("🔐 Encrypt Payload / File", id="btn-goto-encrypt")
-            yield Button("🔓 Decrypt Payload / File", id="btn-goto-decrypt")
-            yield Button("Exit", id="btn-exit")
+        yield Header()
+        with VerticalScroll(id="shell"):
+            yield Static("CRYPT  /  TERMINAL SECURITY TOOLKIT", classes="title")
+            yield Static(
+                "Authenticated encryption • file protection • integrity utilities",
+                classes="subtle",
+            )
+            with Vertical(classes="panel"):
+                yield Label("WORKSPACES")
+                with Horizontal(id="actions"):
+                    yield Button("Encrypt", id="go-encrypt", classes="primary")
+                    yield Button("Decrypt", id="go-decrypt", classes="success")
+                    yield Button("File tools", id="go-files", classes="muted")
+                with Horizontal(id="actions"):
+                    yield Button("Hash & password", id="go-utils", classes="muted")
+                    yield Button("Quit", id="quit", classes="muted")
+                yield Static(
+                    "AES-256-GCM / ChaCha20-Poly1305  •  Argon2id  •  ETK2 / ETFS",
+                    classes="subtle",
+                )
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-goto-encrypt":
-            self.app.push_screen(EncryptScreen())
-        elif event.button.id == "btn-goto-decrypt":
-            self.app.push_screen(DecryptScreen())
-        elif event.button.id == "btn-exit":
+        screens = {
+            "go-encrypt": EncryptScreen,
+            "go-decrypt": DecryptScreen,
+            "go-files": FileScreen,
+            "go-utils": UtilityScreen,
+        }
+        if event.button.id in screens:
+            self.app.push_screen(screens[event.button.id]())
+        elif event.button.id == "quit":
             self.app.exit()
 
 
-class EncryptScreen(Screen[None]):
-    """Dedicated workspace for encrypting text or files."""
-
-    CSS = """
-    EncryptScreen {
-        background: #0f172a;
-        color: #f8fafc;
-    }
-    VerticalScroll {
-        padding: 1 3;
-    }
-    .panel {
-        background: #1e293b;
-        border: solid #334155;
-        border-title-color: #38bdf8;
-        border-title-style: bold;
-        padding: 1 2;
-        margin-bottom: 1;
-    }
-    Label {
-        color: #cbd5e1;
-        margin-top: 1;
-        text-style: bold;
-    }
-    .input-box, Select {
-        background: #0f172a;
-        border: solid #475569;
-        color: #f8fafc;
-        margin-bottom: 1;
-    }
-    Button {
-        margin-top: 1;
-        width: 100%;
-        text-style: bold;
-    }
-    #btn-encrypt {
-        background: #0284c7;
-        color: #f8fafc;
-    }
-    #btn-back {
-        background: #475569;
-        color: #f8fafc;
-    }
-    TextArea {
-        height: 5;
-        background: #0f172a;
-        border: solid #475569;
-        color: #38bdf8;
-        margin-top: 1;
-        margin-bottom: 1;
-    }
-    """
+class BaseScreen(Screen[None]):
+    CSS = THEME
+    heading = "WORKSPACE"
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll(), Vertical(classes="panel") as v:
-            v.border_title = "🔐 ENCRYPTION WORKSPACE"
-            yield Label("Algorithm Selection:")
-            yield Select[AlgorithmType](
-                [
-                    ("AES-256-GCM (Hardware Accelerated)", "AES-256-GCM"),
-                    ("ChaCha20-Poly1305 (Stream Cipher)", "ChaCha20-Poly1305"),
-                ],
-                value="AES-256-GCM",
-                id="encrypt-algo",
-            )
-            yield Label("Secret Text / Payload:")
-            yield TextArea(id="encrypt-input")
-            yield Label("Encryption Password:")
-            yield Input(
-                placeholder="Enter strong password...",
-                password=True,
-                id="encrypt-pass",
-                classes="input-box",
-            )
-            yield Label("Save to File Path (Optional - e.g., secret.enc):")
-            yield Input(
-                placeholder="Leave blank for Hex output only...",
-                id="encrypt-file",
-                classes="input-box",
-            )
-            yield Button("Encrypt Payload", id="btn-encrypt")
-            yield Label("Output / Ciphertext (Hex or File Status):")
-            yield TextArea(id="encrypt-output", read_only=True)
-            yield Button("← Back to Main Menu", id="btn-back")
+        yield Header()
+        with VerticalScroll(id="shell"):
+            with Vertical(classes="panel"):
+                yield Static(self.heading, classes="title")
+                yield from self.fields()
+                yield Static("Ready.", id="result")
+                with Horizontal(id="actions"):
+                    yield Button("Run", id="run", classes="primary")
+                    yield Button("Back", id="back", classes="muted")
+        yield Footer()
+
+    def fields(self) -> ComposeResult:
+        yield Static("No fields configured.")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-encrypt":
-            text_area = self.query_one("#encrypt-input", TextArea)
-            pass_input = self.query_one("#encrypt-pass", Input)
-            file_input = self.query_one("#encrypt-file", Input)
-            algo_select = self.query_one("#encrypt-algo", Select)
-            out_area = self.query_one("#encrypt-output", TextArea)
+        if event.button.id == "back":
+            self.app.pop_screen()
+        elif event.button.id == "run":
+            self.start_operation()
 
+    def start_operation(self) -> None:
+        raise NotImplementedError
+
+    def result(self, message: str) -> None:
+        self.query_one("#result", Static).update(message)
+
+
+class EncryptScreen(BaseScreen):
+    heading = "ENCRYPT TEXT"
+
+    def fields(self) -> ComposeResult:
+        yield Label("Algorithm")
+        yield Select(
+            [("AES-256-GCM", "AES-256-GCM"), ("ChaCha20-Poly1305", "ChaCha20-Poly1305")],
+            value="AES-256-GCM",
+            id="algorithm",
+        )
+        yield Label("Plaintext")
+        yield TextArea(id="plain")
+        yield Label("Password")
+        yield Input(password=True, placeholder="Use a strong passphrase", id="password")
+        yield Label("Optional output file (leave blank for hex)")
+        yield Input(placeholder="output.etk", id="destination")
+
+    def start_operation(self) -> None:
+        plaintext = self.query_one("#plain", TextArea).text
+        password = self.query_one("#password", Input).value
+        algorithm = self.query_one("#algorithm", Select).value
+        destination = self.query_one("#destination", Input).value.strip()
+        self.encrypt_text(plaintext, password, str(algorithm), destination)
+
+    @work(thread=True, exclusive=True)
+    def encrypt_text(self, plaintext: str, password: str, algorithm: str, destination: str) -> None:
+        try:
+            raw = plaintext.encode("utf-8")
+            encrypted = encrypt_data(raw, password, algorithm)  # type: ignore[arg-type]
+            if destination:
+                path = _write_atomic(Path(destination), encrypted)
+                message = f"Encrypted {len(raw):,} bytes → {path}"
+            else:
+                message = f"Encrypted {len(raw):,} bytes. Hex preview: {encrypted[:48].hex()}…"
+            self.app.call_from_thread(self.result, message)
+        except Exception:
+            self.app.call_from_thread(
+                self.result, "Encryption failed. Check the inputs and output path."
+            )
+
+
+class DecryptScreen(BaseScreen):
+    heading = "DECRYPT TEXT"
+
+    def fields(self) -> ComposeResult:
+        yield Label("Encrypted input file (optional)")
+        yield Input(placeholder="payload.etk", id="source")
+        yield Label("Ciphertext hex (if no file selected)")
+        yield TextArea(id="ciphertext")
+        yield Label("Password")
+        yield Input(password=True, id="password")
+
+    def start_operation(self) -> None:
+        source = self.query_one("#source", Input).value.strip()
+        ciphertext = self.query_one("#ciphertext", TextArea).text
+        password = self.query_one("#password", Input).value
+        self.decrypt_text(source, ciphertext, password)
+
+    @work(thread=True, exclusive=True)
+    def decrypt_text(self, source: str, ciphertext: str, password: str) -> None:
+        try:
+            data = Path(source).read_bytes() if source else bytes.fromhex(ciphertext.strip())
+            plaintext = decrypt_data(data, password)
             try:
-                raw_bytes = text_area.text.encode("utf-8")
-                algo = (
-                    str(algo_select.value)
-                    if algo_select.value is not Select.BLANK
-                    else "AES-256-GCM"
+                rendered = plaintext.decode("utf-8")
+                message = f"Authenticated successfully. Plaintext: {rendered[:500]}"
+            except UnicodeDecodeError:
+                message = (
+                    f"Authenticated binary payload: {len(plaintext):,} bytes. "
+                    "Use File tools for binary files."
                 )
-
-                encrypted = encrypt_data(raw_bytes, pass_input.value, algorithm=algo)  # type: ignore[arg-type]
-
-                target_file = file_input.value.strip()
-                if target_file:
-                    Path(target_file).write_bytes(encrypted)
-                    out_area.text = f"✔ Success! Written to: {target_file}\n\nHex:\n{encrypted.hex()}"  # ruff: ignore[line-too-long]
-                else:
-                    out_area.text = encrypted.hex()
-            except Exception as e:
-                out_area.text = f"❌ Error: {e}"
-
-        elif event.button.id == "btn-back":
-            self.app.pop_screen()
-
-
-class DecryptScreen(Screen[None]):
-    """Dedicated workspace for decrypting text or files."""
-
-    CSS = """
-    DecryptScreen {
-        background: #0f172a;
-        color: #f8fafc;
-    }
-    VerticalScroll {
-        padding: 1 3;
-    }
-    .panel {
-        background: #1e293b;
-        border: solid #334155;
-        border-title-color: #38bdf8;
-        border-title-style: bold;
-        padding: 1 2;
-        margin-bottom: 1;
-    }
-    Label {
-        color: #cbd5e1;
-        margin-top: 1;
-        text-style: bold;
-    }
-    .input-box {
-        background: #0f172a;
-        border: solid #475569;
-        color: #f8fafc;
-        margin-bottom: 1;
-    }
-    Button {
-        margin-top: 1;
-        width: 100%;
-        text-style: bold;
-    }
-    #btn-decrypt {
-        background: #16a34a;
-        color: #f8fafc;
-    }
-    #btn-back {
-        background: #475569;
-        color: #f8fafc;
-    }
-    TextArea {
-        height: 5;
-        background: #0f172a;
-        border: solid #475569;
-        color: #38bdf8;
-        margin-top: 1;
-        margin-bottom: 1;
-    }
-    """
-
-    def compose(self) -> ComposeResult:
-        with VerticalScroll(), Vertical(classes="panel") as v:
-            v.border_title = "🔓 DECRYPTION WORKSPACE"
-            yield Label("Load from Encrypted File Path (Optional):")
-            yield Input(
-                placeholder="Path to .enc file or leave blank to paste hex...",
-                id="decrypt-file",
-                classes="input-box",
+            self.app.call_from_thread(self.result, message)
+        except Exception:
+            self.app.call_from_thread(
+                self.result,
+                "Decryption failed: incorrect password, malformed input, or damaged data.",
             )
-            yield Label("Ciphertext (Hex):")
-            yield TextArea(id="decrypt-input")
-            yield Label("Decryption Password:")
-            yield Input(
-                placeholder="Enter password...",
-                password=True,
-                id="decrypt-pass",
-                classes="input-box",
+
+
+class FileScreen(BaseScreen):
+    heading = "FILE / DIRECTORY ENCRYPTION"
+
+    def fields(self) -> ComposeResult:
+        yield Label("Mode")
+        yield Select(
+            [
+                ("Encrypt file", "encrypt-file"),
+                ("Decrypt file", "decrypt-file"),
+                ("Encrypt directory", "encrypt-dir"),
+                ("Decrypt directory", "decrypt-dir"),
+            ],
+            value="encrypt-file",
+            id="mode",
+        )
+        yield Label("Source path")
+        yield Input(placeholder="/path/to/file-or-directory", id="source")
+        yield Label("Destination path")
+        yield Input(placeholder="/path/to/output", id="destination")
+        yield Label("Password")
+        yield Input(password=True, id="password")
+        yield Label("Algorithm (encryption only)")
+        yield Select(
+            [("AES-256-GCM", "AES-256-GCM"), ("ChaCha20-Poly1305", "ChaCha20-Poly1305")],
+            value="AES-256-GCM",
+            id="algorithm",
+        )
+
+    def start_operation(self) -> None:
+        mode = str(self.query_one("#mode", Select).value)
+        source = self.query_one("#source", Input).value.strip()
+        destination = self.query_one("#destination", Input).value.strip()
+        password = self.query_one("#password", Input).value
+        algorithm = str(self.query_one("#algorithm", Select).value)
+        self.process_files(mode, source, destination, password, algorithm)
+
+    @work(thread=True, exclusive=True)
+    def process_files(
+        self, mode: str, source_value: str, destination_value: str,
+        password: str, algorithm: str
+    ) -> None:
+        try:
+            source, destination = Path(source_value), Path(destination_value)
+            started = time.perf_counter()
+            if mode == "encrypt-file":
+                encrypt_file(source, destination, password, algorithm)  # type: ignore[arg-type]
+                count = 1
+            elif mode == "decrypt-file":
+                decrypt_file(source, destination, password)
+                count = 1
+            elif mode == "encrypt-dir":
+                count = len(encrypt_directory(source, destination, password, algorithm))  # type: ignore[arg-type]
+            elif mode == "decrypt-dir":
+                count = len(decrypt_directory(source, destination, password))
+            else:
+                raise ValueError("Unknown file operation.")
+            elapsed = time.perf_counter() - started
+            self.app.call_from_thread(
+                self.result,
+                f"Completed {count} file(s) in {elapsed:.2f}s. Output: {destination}",
             )
-            yield Button("Decrypt Payload", id="btn-decrypt")
-            yield Label("Recovered Plaintext:")
-            yield TextArea(id="decrypt-output", read_only=True)
-            yield Button("← Back to Main Menu", id="btn-back")
+        except Exception as exc:
+            self.app.call_from_thread(
+                self.result, f"Operation failed: {type(exc).__name__}: {exc}"
+            )
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-decrypt":
-            text_area = self.query_one("#decrypt-input", TextArea)
-            pass_input = self.query_one("#decrypt-pass", Input)
-            file_input = self.query_one("#decrypt-file", Input)
-            out_area = self.query_one("#decrypt-output", TextArea)
 
-            try:
-                target_file = file_input.value.strip()
-                if target_file:
-                    encrypted_bytes = Path(target_file).read_bytes()
-                else:
-                    encrypted_bytes = bytes.fromhex(text_area.text.strip())
+class UtilityScreen(BaseScreen):
+    heading = "INTEGRITY & PASSWORD UTILITIES"
 
-                decrypted = decrypt_data(encrypted_bytes, pass_input.value)
-                out_area.text = decrypted.decode("utf-8")
-            except Exception as e:
-                out_area.text = f"❌ Decryption failed: {e}"
+    def fields(self) -> ComposeResult:
+        yield Label("Action")
+        yield Select(
+            [("SHA-256 file digest", "hash"), ("Generate secure password", "password")],
+            value="hash",
+            id="action",
+        )
+        yield Label("File path (hash action)")
+        yield Input(placeholder="/path/to/file", id="source")
+        yield Label("Password length (8–256)")
+        yield Input(value="32", id="length")
 
-        elif event.button.id == "btn-back":
-            self.app.pop_screen()
+    def start_operation(self) -> None:
+        action = str(self.query_one("#action", Select).value)
+        source = self.query_one("#source", Input).value.strip()
+        length = self.query_one("#length", Input).value
+        self.run_utility(action, source, length)
+
+    @work(thread=True, exclusive=True)
+    def run_utility(self, action: str, source: str, length: str) -> None:
+        try:
+            if action == "hash":
+                message = f"SHA-256: {hash_file(source)}"
+            elif action == "password":
+                message = f"Generated password (copy it now): {generate_passphrase(int(length))}"
+            else:
+                raise ValueError("Unknown utility.")
+            self.app.call_from_thread(self.result, message)
+        except Exception as exc:
+            self.app.call_from_thread(
+                self.result, f"Utility failed: {type(exc).__name__}: {exc}"
+            )
+
+
+def _write_atomic(destination: Path, data: bytes) -> Path:
+    import os
+    import tempfile
+
+    if destination.exists():
+        raise FileExistsError(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        dir=destination.parent, prefix=f".{destination.name}.", delete=False
+    ) as handle:
+        temporary = Path(handle.name)
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+    try:
+        os.link(temporary, destination)
+        temporary.unlink()
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+    return destination
 
 
 class EncryptionApp(App[None]):
-    """Modern multi-screen TUI for secure encryption and decryption."""
-
-    TITLE = "🔒 Secure Encryption Toolkit v2.0"
+    TITLE = "CRYPT | Terminal Security Toolkit"
+    CSS = THEME
+    BINDINGS = [("ctrl+q", "quit", "Quit")]
 
     def on_mount(self) -> None:
-        self.push_screen(MainMenuScreen())
+        self.push_screen(Dashboard())
 
 
 def main() -> None:
-    app = EncryptionApp()
-    app.run()
+    EncryptionApp().run()
 
 
 if __name__ == "__main__":
