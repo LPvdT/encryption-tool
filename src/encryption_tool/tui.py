@@ -495,7 +495,7 @@ class EncryptionApp(App[None]):
                 message = f"Authenticated plaintext: {value[:500]!r}"
             self.app.call_from_thread(self._set, "#result", message)
             self.app.call_from_thread(
-                record_operation,
+                self._record_operation,
                 mode,
                 path or "text",
                 path,
@@ -568,7 +568,7 @@ class EncryptionApp(App[None]):
             message = f"Completed {len(result)} file(s) in {time.perf_counter() - start:.2f}s"
             self.app.call_from_thread(self._set, "#result", message)
             self.app.call_from_thread(
-                record_operation,
+                self._record_operation,
                 mode,
                 src,
                 dst,
@@ -617,7 +617,7 @@ class EncryptionApp(App[None]):
                     )
                 )
             self.app.call_from_thread(self._set, "#result", result)
-            self.app.call_from_thread(record_operation, mode, path, "", "success")
+            self.app.call_from_thread(self._record_operation, mode, path, "", "success")
         except Exception as exc:
             self.app.call_from_thread(self._set, "#result", f"{type(exc).__name__}: {exc}")
 
