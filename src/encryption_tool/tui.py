@@ -124,6 +124,9 @@ class EncryptionApp(App[None]):
         await self.show_workspace("dashboard")
         self._apply_theme()
 
+    def _record_operation(self, *args: object, **kwargs: object) -> None:
+        record_operation(*args, **kwargs, limit=self.config.history_limit)
+
     def _set(self, selector: str, value: str) -> None:
         self.screen.query_one(selector, Static).update(value)
 
@@ -261,7 +264,7 @@ class EncryptionApp(App[None]):
                 Static(
                     "\n".join(
                         f"{r.get('timestamp', '')}  {r.get('operation', '')}  {r.get('status', '')}"
-                        for r in read_history()
+                        for r in read_history(limit=self.config.history_limit)
                     )
                     or "No operations recorded."
                 ),
@@ -437,7 +440,7 @@ class EncryptionApp(App[None]):
         try:
             result = decrypt_file(source, destination, password, cancel=self.cancel_event)
             self.app.call_from_thread(self._set, "#result", f"Decrypted file written to {result}")
-            self.app.call_from_thread(record_operation, "decrypt-file", source, destination, "success")
+            self.app.call_from_thread(self._record_operation, "decrypt-file", source, destination, "success")
         except Exception as exc:
             self.app.call_from_thread(self._set, "#result", f"{type(exc).__name__}: {exc}")
 
