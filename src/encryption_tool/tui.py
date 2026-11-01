@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from textual import work
 from textual.app import App, ComposeResult
@@ -124,7 +124,7 @@ class EncryptionApp(App[None]):
         await self.show_workspace("dashboard")
         self._apply_theme()
 
-    def _record_operation(self, *args: object, **kwargs: object) -> None:
+    def _record_operation(self, *args: Any, **kwargs: Any) -> None:
         record_operation(*args, **kwargs, limit=self.config.history_limit)
 
     def _set(self, selector: str, value: str) -> None:
@@ -440,7 +440,7 @@ class EncryptionApp(App[None]):
         try:
             result = decrypt_file(source, destination, password, cancel=self.cancel_event)
             self.app.call_from_thread(self._set, "#result", f"Decrypted file written to {result}")
-            self.app.call_from_thread(self._record_operation, "decrypt-file", source, destination, "success")
+            self.app.call_from_thread(self._self._record_operation, "decrypt-file", source, destination, "success")
         except Exception as exc:
             self.app.call_from_thread(self._set, "#result", f"{type(exc).__name__}: {exc}")
 
