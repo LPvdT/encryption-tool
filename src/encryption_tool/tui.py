@@ -263,7 +263,7 @@ class EncryptionApp(App[None]):
             return
         if ident == "key-generate":
             try:
-                p = Path(self.query_one("#key-path", Input).value).expanduser()
+                p = Path(self.screen.query_one("#key-path", Input).value).expanduser()
                 generate_key(p)
                 self._set("#result", f"Key created: {p}")
             except Exception as exc:
@@ -273,7 +273,7 @@ class EncryptionApp(App[None]):
             try:
                 self._set(
                     "#result",
-                    str(inspect_key(Path(self.query_one("#key-path", Input).value).expanduser())),
+                    str(inspect_key(Path(self.screen.query_one("#key-path", Input).value).expanduser())),
                 )
             except Exception as exc:
                 self._set("#result", f"Key inspection failed: {exc}")
@@ -287,7 +287,7 @@ class EncryptionApp(App[None]):
                     "#result",
                     str(
                         inspect_file(
-                            Path(self.query_one("#inspect-path", Input).value).expanduser()
+                            Path(self.screen.query_one("#inspect-path", Input).value).expanduser()
                         )
                     ),
                 )
@@ -295,10 +295,10 @@ class EncryptionApp(App[None]):
                 self._set("#result", f"Inspection failed: {exc}")
 
     def _text_operation(self, mode: str) -> None:
-        text = self.query_one("#text-input", TextArea).text
-        password = self.query_one("#text-password", Input).value
-        algorithm = cast(AlgorithmType, self.query_one("#text-algorithm", Select).value)
-        path = self.query_one("#text-path", Input).value.strip()
+        text = self.screen.query_one("#text-input", TextArea).text
+        password = self.screen.query_one("#text-password", Input).value
+        algorithm = cast(AlgorithmType, self.screen.query_one("#text-algorithm", Select).value)
+        path = self.screen.query_one("#text-path", Input).value.strip()
         self.text_worker(mode, text, password, algorithm, path)
 
     @work(thread=True, exclusive=True)
@@ -335,11 +335,11 @@ class EncryptionApp(App[None]):
             self.app.call_from_thread(self._set, "#result", f"{type(exc).__name__}: {exc}")
 
     def _file_operation(self) -> None:
-        mode = str(self.query_one("#file-mode", Select).value)
-        src = self.query_one("#file-source", Input).value.strip()
-        dst = self.query_one("#file-destination", Input).value.strip()
-        pwd = self.query_one("#file-password", Input).value
-        alg = str(self.query_one("#file-algorithm", Select).value)
+        mode = str(self.screen.query_one("#file-mode", Select).value)
+        src = self.screen.query_one("#file-source", Input).value.strip()
+        dst = self.screen.query_one("#file-destination", Input).value.strip()
+        pwd = self.screen.query_one("#file-password", Input).value
+        alg = str(self.screen.query_one("#file-algorithm", Select).value)
         self.cancel_event = threading.Event()
         self.file_worker(mode, src, dst, pwd, alg, self.cancel_event)
 
@@ -416,12 +416,12 @@ class EncryptionApp(App[None]):
         self._set("#result", "Cancellation requested…")
 
     def _utility_operation(self) -> None:
-        mode = str(self.query_one("#util-mode", Select).value)
-        path = self.query_one("#util-path", Input).value.strip()
-        key = self.query_one("#util-key", Input).value.strip()
-        expected = self.query_one("#util-expected", Input).value.strip()
-        length = self.query_one("#util-length", Input).value
-        algorithm = str(self.query_one("#util-algorithm", Select).value)
+        mode = str(self.screen.query_one("#util-mode", Select).value)
+        path = self.screen.query_one("#util-path", Input).value.strip()
+        key = self.screen.query_one("#util-key", Input).value.strip()
+        expected = self.screen.query_one("#util-expected", Input).value.strip()
+        length = self.screen.query_one("#util-length", Input).value
+        algorithm = str(self.screen.query_one("#util-algorithm", Select).value)
         self.utility_worker(mode, path, key, expected, length, algorithm)
 
     @work(thread=True, exclusive=True)
