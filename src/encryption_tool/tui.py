@@ -65,7 +65,7 @@ class Workspace(Screen[None]):
     def on_button_pressed(self,event:Button.Pressed)->None:
         ident=event.button.id or ""
         if ident.startswith("nav-"):
-            self.app.show_workspace(ident[4:])
+            await self.app.show_workspace(ident[4:])
         elif ident=="cancel":
             self.app.cancel_operation()
 
