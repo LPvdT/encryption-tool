@@ -3,11 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from textual.app import App, ComposeResult
-from textual.containers import VerticalScroll
+from textual.containers import Vertical, VerticalScroll
+from textual.screen import Screen
 from textual.widgets import (
     Button,
-    Footer,
-    Header,
     Input,
     Label,
     Select,
@@ -18,52 +17,142 @@ from textual.widgets import (
 from encryption_tool.crypto import AlgorithmType, decrypt_data, encrypt_data
 
 
-class EncryptionApp(App[None]):
-    """Modern TUI for secure encryption and decryption with file support."""
+class MainMenuScreen(Screen[None]):
+    """Main menu screen to choose between encryption and decryption."""
 
     CSS = """
-    Screen {
-        background: $surface;
+    MainMenuScreen {
+        align: center middle;
+        background: #0f172a;
     }
-    VerticalScroll {
-        padding: 1 2;
+
+    #menu-container {
+        width: 50;
+        height: auto;
+        background: #1e293b;
+        border: solid #334155;
+        border-title-color: #38bdf8;
+        border-title-style: bold;
+        padding: 2 4;
     }
-    .section-title {
-        color: $accent;
+
+    .menu-title {
+        color: #38bdf8;
         text-style: bold;
+        text-align: center;
+        margin-bottom: 2;
+    }
+
+    Button {
+        width: 100%;
         margin-top: 1;
         margin-bottom: 1;
+        text-style: bold;
     }
-    .input-box {
+
+    #btn-goto-encrypt {
+        background: #0284c7;
+        color: #f8fafc;
+    }
+    #btn-goto-encrypt:hover {
+        background: #0ea5e9;
+    }
+
+    #btn-goto-decrypt {
+        background: #16a34a;
+        color: #f8fafc;
+    }
+    #btn-goto-decrypt:hover {
+        background: #22c55e;
+    }
+
+    #btn-exit {
+        background: #475569;
+        color: #f8fafc;
+    }
+    #btn-exit:hover {
+        background: #64748b;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="menu-container") as container:
+            container.border_title = "🔒 SECURE TOOLKIT"
+            yield Static("Select an Operation Mode", classes="menu-title")
+            yield Button("🔐 Encrypt Payload / File", id="btn-goto-encrypt")
+            yield Button("🔓 Decrypt Payload / File", id="btn-goto-decrypt")
+            yield Button("Exit", id="btn-exit")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-goto-encrypt":
+            self.app.push_screen(EncryptScreen())
+        elif event.button.id == "btn-goto-decrypt":
+            self.app.push_screen(DecryptScreen())
+        elif event.button.id == "btn-exit":
+            self.app.exit()
+
+
+class EncryptScreen(Screen[None]):
+    """Dedicated workspace for encrypting text or files."""
+
+    CSS = """
+    EncryptScreen {
+        background: #0f172a;
+        color: #f8fafc;
+    }
+    VerticalScroll {
+        padding: 1 3;
+    }
+    .panel {
+        background: #1e293b;
+        border: solid #334155;
+        border-title-color: #38bdf8;
+        border-title-style: bold;
+        padding: 1 2;
         margin-bottom: 1;
     }
-    Select {
+    Label {
+        color: #cbd5e1;
+        margin-top: 1;
+        text-style: bold;
+    }
+    .input-box, Select {
+        background: #0f172a;
+        border: solid #475569;
+        color: #f8fafc;
         margin-bottom: 1;
     }
     Button {
         margin-top: 1;
-        margin-bottom: 2;
         width: 100%;
+        text-style: bold;
+    }
+    #btn-encrypt {
+        background: #0284c7;
+        color: #f8fafc;
+    }
+    #btn-back {
+        background: #475569;
+        color: #f8fafc;
     }
     TextArea {
-        height: 6;
+        height: 5;
+        background: #0f172a;
+        border: solid #475569;
+        color: #38bdf8;
+        margin-top: 1;
         margin-bottom: 1;
     }
     """
 
-    TITLE = "🔒 Secure Encryption Toolkit"
-
     def compose(self) -> ComposeResult:
-        yield Header()
-        yield Footer()
-        with VerticalScroll():
-            # Encrypt Section
-            yield Static("--- ENCRYPT ---", classes="section-title")
-            yield Label("Algorithm:")
+        with VerticalScroll(), Vertical(classes="panel") as v:
+            v.border_title = "🔐 ENCRYPTION WORKSPACE"
+            yield Label("Algorithm Selection:")
             yield Select[AlgorithmType](
                 [
-                    ("AES-256-GCM", "AES-256-GCM"),
-                    ("ChaCha20-Poly1305", "ChaCha20-Poly1305"),
+                    ("AES-256-GCM (Hardware Accelerated)", "AES-256-GCM"),
+                    ("ChaCha20-Poly1305 (Stream Cipher)", "ChaCha20-Poly1305"),
                 ],
                 value="AES-256-GCM",
                 id="encrypt-algo",
@@ -79,34 +168,14 @@ class EncryptionApp(App[None]):
             )
             yield Label("Save to File Path (Optional - e.g., secret.enc):")
             yield Input(
-                placeholder="Leave blank to output Hex only...",
+                placeholder="Leave blank for Hex output only...",
                 id="encrypt-file",
                 classes="input-box",
             )
-            yield Button("Encrypt Payload", variant="primary", id="btn-encrypt")
-            yield Label("Result / Ciphertext (Hex or File Status):")
+            yield Button("Encrypt Payload", id="btn-encrypt")
+            yield Label("Output / Ciphertext (Hex or File Status):")
             yield TextArea(id="encrypt-output", read_only=True)
-
-            # Decrypt Section
-            yield Static("--- DECRYPT ---", classes="section-title")
-            yield Label("Load from Encrypted File Path (Optional):")
-            yield Input(
-                placeholder="Path to .enc file or leave blank to paste hex...",
-                id="decrypt-file",
-                classes="input-box",
-            )
-            yield Label("Ciphertext (Hex):")
-            yield TextArea(id="decrypt-input")
-            yield Label("Decryption Password:")
-            yield Input(
-                placeholder="Enter password...",
-                password=True,
-                id="decrypt-pass",
-                classes="input-box",
-            )
-            yield Button("Decrypt Payload", variant="success", id="btn-decrypt")
-            yield Label("Recovered Plaintext:")
-            yield TextArea(id="decrypt-output", read_only=True)
+            yield Button("← Back to Main Menu", id="btn-back")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-encrypt":
@@ -129,13 +198,94 @@ class EncryptionApp(App[None]):
                 target_file = file_input.value.strip()
                 if target_file:
                     Path(target_file).write_bytes(encrypted)
-                    out_area.text = f"Success! Encrypted data written to: {target_file}\n\nHex:\n{encrypted.hex()}"  # ruff: ignore[line-too-long]
+                    out_area.text = f"✔ Success! Written to: {target_file}\n\nHex:\n{encrypted.hex()}"  # ruff: ignore[line-too-long]
                 else:
                     out_area.text = encrypted.hex()
             except Exception as e:
-                out_area.text = f"Error: {e}"
+                out_area.text = f"❌ Error: {e}"
 
-        elif event.button.id == "btn-decrypt":
+        elif event.button.id == "btn-back":
+            self.app.pop_screen()
+
+
+class DecryptScreen(Screen[None]):
+    """Dedicated workspace for decrypting text or files."""
+
+    CSS = """
+    DecryptScreen {
+        background: #0f172a;
+        color: #f8fafc;
+    }
+    VerticalScroll {
+        padding: 1 3;
+    }
+    .panel {
+        background: #1e293b;
+        border: solid #334155;
+        border-title-color: #38bdf8;
+        border-title-style: bold;
+        padding: 1 2;
+        margin-bottom: 1;
+    }
+    Label {
+        color: #cbd5e1;
+        margin-top: 1;
+        text-style: bold;
+    }
+    .input-box {
+        background: #0f172a;
+        border: solid #475569;
+        color: #f8fafc;
+        margin-bottom: 1;
+    }
+    Button {
+        margin-top: 1;
+        width: 100%;
+        text-style: bold;
+    }
+    #btn-decrypt {
+        background: #16a34a;
+        color: #f8fafc;
+    }
+    #btn-back {
+        background: #475569;
+        color: #f8fafc;
+    }
+    TextArea {
+        height: 5;
+        background: #0f172a;
+        border: solid #475569;
+        color: #38bdf8;
+        margin-top: 1;
+        margin-bottom: 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll(), Vertical(classes="panel") as v:
+            v.border_title = "🔓 DECRYPTION WORKSPACE"
+            yield Label("Load from Encrypted File Path (Optional):")
+            yield Input(
+                placeholder="Path to .enc file or leave blank to paste hex...",
+                id="decrypt-file",
+                classes="input-box",
+            )
+            yield Label("Ciphertext (Hex):")
+            yield TextArea(id="decrypt-input")
+            yield Label("Decryption Password:")
+            yield Input(
+                placeholder="Enter password...",
+                password=True,
+                id="decrypt-pass",
+                classes="input-box",
+            )
+            yield Button("Decrypt Payload", id="btn-decrypt")
+            yield Label("Recovered Plaintext:")
+            yield TextArea(id="decrypt-output", read_only=True)
+            yield Button("← Back to Main Menu", id="btn-back")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-decrypt":
             text_area = self.query_one("#decrypt-input", TextArea)
             pass_input = self.query_one("#decrypt-pass", Input)
             file_input = self.query_one("#decrypt-file", Input)
@@ -151,7 +301,19 @@ class EncryptionApp(App[None]):
                 decrypted = decrypt_data(encrypted_bytes, pass_input.value)
                 out_area.text = decrypted.decode("utf-8")
             except Exception as e:
-                out_area.text = f"Decryption failed: {e}"
+                out_area.text = f"❌ Decryption failed: {e}"
+
+        elif event.button.id == "btn-back":
+            self.app.pop_screen()
+
+
+class EncryptionApp(App[None]):
+    """Modern multi-screen TUI for secure encryption and decryption."""
+
+    TITLE = "🔒 Secure Encryption Toolkit v2.0"
+
+    def on_mount(self) -> None:
+        self.push_screen(MainMenuScreen())
 
 
 def main() -> None:
