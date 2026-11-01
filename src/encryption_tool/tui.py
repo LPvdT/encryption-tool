@@ -70,13 +70,16 @@ class EncryptionApp(App[None]):
         self.config=load_config()
         self.cancel_event=threading.Event()
         self.current_worker=None
-    def on_mount(self)->None:
-        self.push_screen(Workspace())
-        self.run_worker(self.show_workspace("dashboard"))
+    async def on_mount(self)->None:
+        await self.push_screen(Workspace())
+        await self.show_workspace("dashboard")
     def _set(self,selector:str,value:str)->None:
-        self.query_one(selector,Static).update(value)
+        self.screen.query_one(selector,Static).update(value)
+    def _update_progress(self,value:int)->None:
+        self.screen.query_one("#progress",ProgressBar).update(progress=value,total=100)
     async def show_workspace(self,name:str)->None:
-        root=self.query_one("#workspace",Static)
+        workspace=self.screen
+        root=workspace.query_one("#workspace",Static)
         await root.remove_children()
         if name=="dashboard":
             await root.mount(Static("CRYPT — TERMINAL SECURITY TOOLKIT",classes="heading"),
@@ -122,11 +125,9 @@ class EncryptionApp(App[None]):
                 Static("Config file: platform config directory / encryption-tool/config.toml"),
                 Static(f"Theme: {self.config.theme} · Chunk size: {self.config.chunk_size:,} · Algorithm: {self.config.default_algorithm}"))
         self._set("#result",f"READY · {name.upper()}")
-        self.query_one("#progress",ProgressBar).update(progress=0,total=100)
+        workspace.query_one("#progress",ProgressBar).update(progress=0,total=100)
     def on_button_pressed(self,event:Button.Pressed)->None:
         ident=event.button.id or ""
-        if ident.startswith("nav-"):
-            self.show_workspace(ident[4:]);return
         if ident=="cancel":self.cancel_operation();return
         if ident=="run-encrypt" or ident=="run-decrypt":
             self._text_operation("encrypt" if ident=="run-encrypt" else "decrypt");return
@@ -179,7 +180,7 @@ class EncryptionApp(App[None]):
         start=time.perf_counter()
         def progress(done:int,total:int)->None:
             pct=int(done*100/total) if total else 100
-            self.app.call_from_thread(self.query_one("#progress",ProgressBar).update,progress=pct,total=100)
+            self.app.call_from_thread(self._update_progress,pct)
         try:
             source=Path(src).expanduser();target=Path(dst).expanduser()
             if mode=="encrypt-file":result=[encrypt_file(source,target,pwd,alg,chunk_size=self.config.chunk_size,progress=progress,cancel=cancel)]
