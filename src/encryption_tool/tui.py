@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
+from typing import cast
 
 from textual import work
 from textual.app import App, ComposeResult
@@ -21,7 +22,7 @@ from textual.widgets import (
 )
 
 from encryption_tool.config import load_config
-from encryption_tool.crypto import decrypt_data, encrypt_data
+from encryption_tool.crypto import AlgorithmType, decrypt_data, encrypt_data
 from encryption_tool.history import read_history, record_operation
 from encryption_tool.keys import generate_key, inspect_key, load_key
 from encryption_tool.streaming import (
@@ -87,10 +88,11 @@ class Workspace(Screen[None]):
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         ident = event.button.id or ""
+        app = cast(EncryptionApp, self.app)
         if ident.startswith("nav-"):
-            await self.app.show_workspace(ident[4:])
+            await app.show_workspace(ident[4:])
         elif ident == "cancel":
-            self.app.cancel_operation()
+            app.cancel_operation()
 
 
 class EncryptionApp(App[None]):
@@ -184,7 +186,8 @@ class EncryptionApp(App[None]):
                 Button("Generate 256-bit key", id="key-generate"),
                 Button("Inspect key fingerprint", id="key-inspect"),
                 Static(
-                    "Raw keys are stored as 32 random bytes. Protect the file with OS permissions/ACLs and backups.",
+                    "Raw keys are stored as 32 random bytes. Protect the file with "
+                    "OS permissions/ACLs and backups.",
                     classes="subtle",
                 ),
             )
@@ -219,7 +222,8 @@ class EncryptionApp(App[None]):
                 Input(id="inspect-path"),
                 Button("Inspect header", id="run-inspect"),
                 Static(
-                    "Metadata inspection does not authenticate ciphertext; successful decryption is required to verify its tag.",
+                    "Metadata inspection does not authenticate ciphertext; successful "
+                    "decryption is required to verify its tag.",
                     classes="subtle",
                 ),
             )
@@ -239,7 +243,8 @@ class EncryptionApp(App[None]):
                 Static("CONFIGURATION", classes="heading"),
                 Static("Config file: platform config directory / encryption-tool/config.toml"),
                 Static(
-                    f"Theme: {self.config.theme} · Chunk size: {self.config.chunk_size:,} · Algorithm: {self.config.default_algorithm}"
+                    f"Theme: {self.config.theme} · Chunk size: {self.config.chunk_size:,} · "
+                    f"Algorithm: {self.config.default_algorithm}"
                 ),
             )
         self._set("#result", f"READY · {name.upper()}")
@@ -292,12 +297,14 @@ class EncryptionApp(App[None]):
     def _text_operation(self, mode: str) -> None:
         text = self.query_one("#text-input", TextArea).text
         password = self.query_one("#text-password", Input).value
-        algorithm = str(self.query_one("#text-algorithm", Select).value)
+        algorithm = cast(AlgorithmType, self.query_one("#text-algorithm", Select).value)
         path = self.query_one("#text-path", Input).value.strip()
         self.text_worker(mode, text, password, algorithm, path)
 
     @work(thread=True, exclusive=True)
-    def text_worker(self, mode: str, text: str, password: str, algorithm: str, path: str) -> None:
+    def text_worker(
+        self, mode: str, text: str, password: str, algorithm: AlgorithmType, path: str
+    ) -> None:
         try:
             if mode == "encrypt":
                 value = encrypt_data(text.encode(), password, algorithm)
