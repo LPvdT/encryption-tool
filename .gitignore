@@ -1,4 +1,4 @@
 # Folders
-.pytest_cache
-inputs
-__pycache__
+.pytest_cache/
+__pycache__/
+.venv/
