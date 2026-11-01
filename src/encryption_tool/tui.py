@@ -196,7 +196,7 @@ class EncryptionApp(App[None]):
             elif mode=="decrypt-dir":result=decrypt_directory(source,target,pwd,progress=progress,cancel=cancel)
             elif mode=="batch-encrypt":
                 from encryption_tool.batch import batch_encrypt
-                batch=batch_encrypt(source.iterdir(),target,pwd,alg,progress,cancel);result=list(batch.completed)
+                batch=batch_encrypt(source.iterdir(),target,pwd,alg,progress=progress,cancel=cancel);result=list(batch.completed)
                 if batch.failed:raise RuntimeError(str(batch.failed))
             else:
                 from encryption_tool.batch import batch_decrypt
