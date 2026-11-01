@@ -46,6 +46,38 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     return AppConfig(theme, chunk, algorithm, limit)
 
 
+def save_config(config: AppConfig, path: str | Path | None = None) -> Path:
+    """Validate and atomically persist application settings."""
+    if config.theme not in ("dark", "light"):
+        raise ValueError("Invalid config theme.")
+    if not 4096 <= config.chunk_size <= 16 * 1024 * 1024:
+        raise ValueError("Invalid config chunk_size.")
+    if not 0 <= config.history_limit <= 10_000:
+        raise ValueError("Invalid config history_limit.")
+    if config.default_algorithm not in ("AES-256-GCM", "ChaCha20-Poly1305"):
+        raise ValueError("Invalid config default_algorithm.")
+    target = Path(path) if path else config_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    content = (
+        f'theme = "{config.theme}"\\n'
+        f"chunk_size = {config.chunk_size}\\n"
+        f'default_algorithm = "{config.default_algorithm}"\\n'
+        f"history_limit = {config.history_limit}\\n"
+    )
+    temporary = target.with_name(f".{target.name}.tmp")
+    try:
+        with temporary.open("x", encoding="utf-8") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if os.name != "nt":
+            temporary.chmod(0o600)
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return target
+
+
 def write_default_config(path: str | Path | None = None) -> Path:
     target = Path(path) if path else config_path()
     target.parent.mkdir(parents=True, exist_ok=True)
