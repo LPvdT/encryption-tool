@@ -32,14 +32,6 @@ TextArea { height: 6; }
 Button { margin: 1 0; }
 #result { border: round #26364a; padding: 1; min-height: 3; }
 #progress { margin: 1 0; }
-@media (max-width: 80) {
-  #sidebar { width: 17; }
-  #content { padding: 1; }
-}
-@media (max-width: 55) {
-  #sidebar { width: 12; }
-  #brand { display: none; }
-}
 """
 
 class Workspace(Screen[None]):
