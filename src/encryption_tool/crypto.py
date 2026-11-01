@@ -66,7 +66,7 @@ def encrypt_data(
     if not isinstance(plaintext, bytes):
         raise TypeError("plaintext must be bytes.")
     if algorithm not in _IDS:
-        raise ValueError(f"Unsupported algorithm: {algorithm!r}")
+        raise ValueError(f"Unsupported encryption algorithm: {algorithm!r}")
     pwd = _validate_password(password)
     aid = _IDS[algorithm]
     salt = os.urandom(SALT_SIZE)
@@ -83,7 +83,7 @@ def encrypt_data_with_key(
     if len(key) != KEY_SIZE:
         raise ValueError("Key must contain exactly 32 bytes.")
     if algorithm not in _IDS:
-        raise ValueError(f"Unsupported algorithm: {algorithm!r}")
+        raise ValueError(f"Unsupported encryption algorithm: {algorithm!r}")
     aid = _IDS[algorithm]
     nonce = os.urandom(NONCE_SIZE)
     header = _KEY_HEADER.pack(KEY_MAGIC, FORMAT_VERSION, aid) + nonce
