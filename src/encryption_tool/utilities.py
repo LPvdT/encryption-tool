@@ -41,8 +41,12 @@ def verify_hmac(data: bytes, key: bytes, expected: str, algorithm: str = "sha256
 
 
 def generate_passphrase(
-    length: int = 32, *, uppercase: bool = True, lowercase: bool = True,
-    digits: bool = True, symbols: bool = True,
+    length: int = 32,
+    *,
+    uppercase: bool = True,
+    lowercase: bool = True,
+    digits: bool = True,
+    symbols: bool = True,
 ) -> str:
     if not 8 <= length <= 256:
         raise ValueError("Password length must be between 8 and 256.")

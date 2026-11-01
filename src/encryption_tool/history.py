@@ -8,13 +8,28 @@ from pathlib import Path
 
 def history_path() -> Path:
     if os.name == "nt":
-        return Path(os.environ.get("APPDATA", Path.home() / "AppData/Roaming")) / "encryption-tool" / "history.json"
-    return Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "encryption-tool" / "history.json"
+        return (
+            Path(os.environ.get("APPDATA", Path.home() / "AppData/Roaming"))
+            / "encryption-tool"
+            / "history.json"
+        )
+    return (
+        Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
+        / "encryption-tool"
+        / "history.json"
+    )
 
 
-def record_operation(operation: str, source: str, destination: str, status: str, *,
-                     bytes_processed: int = 0, duration_seconds: float = 0.0,
-                     limit: int = 100) -> None:
+def record_operation(
+    operation: str,
+    source: str,
+    destination: str,
+    status: str,
+    *,
+    bytes_processed: int = 0,
+    duration_seconds: float = 0.0,
+    limit: int = 100,
+) -> None:
     if limit <= 0:
         return
     path = history_path()
@@ -27,12 +42,18 @@ def record_operation(operation: str, source: str, destination: str, status: str,
                 records = []
         except (OSError, json.JSONDecodeError):
             records = []
-    records.insert(0, {
-        "timestamp": datetime.now(UTC).isoformat(),
-        "operation": operation, "source": source, "destination": destination,
-        "status": status, "bytes_processed": bytes_processed,
-        "duration_seconds": round(duration_seconds, 3),
-    })
+    records.insert(
+        0,
+        {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "operation": operation,
+            "source": source,
+            "destination": destination,
+            "status": status,
+            "bytes_processed": bytes_processed,
+            "duration_seconds": round(duration_seconds, 3),
+        },
+    )
     temporary = path.with_suffix(".tmp")
     temporary.write_text(json.dumps(records[:limit], indent=2), encoding="utf-8")
     if os.name != "nt":

@@ -10,7 +10,12 @@ from typing import BinaryIO
 
 from cryptography.exceptions import InvalidTag
 
-from encryption_tool.crypto import EncryptionError, _cipher, _derive_argon2id_key, _validate_password
+from encryption_tool.crypto import (
+    EncryptionError,
+    _cipher,
+    _derive_argon2id_key,
+    _validate_password,
+)
 
 MAGIC = b"ETFS"
 VERSION = 1
@@ -44,8 +49,11 @@ def _nonce(prefix: bytes, counter: int) -> bytes:
 def _temporary_output(destination: Path) -> tuple[BinaryIO, Path]:
     destination.parent.mkdir(parents=True, exist_ok=True)
     handle = tempfile.NamedTemporaryFile(
-        mode="wb", prefix=f".{destination.name}.", suffix=".tmp",
-        dir=destination.parent, delete=False
+        mode="wb",
+        prefix=f".{destination.name}.",
+        suffix=".tmp",
+        dir=destination.parent,
+        delete=False,
     )
     return handle, Path(handle.name)
 
@@ -59,9 +67,13 @@ def _publish(temporary: Path, destination: Path, overwrite: bool) -> None:
 
 
 def encrypt_file(
-    source: str | Path, destination: str | Path, password: str,
-    algorithm: str = "AES-256-GCM", chunk_size: int = DEFAULT_CHUNK_SIZE,
-    overwrite: bool = False, progress: Progress | None = None,
+    source: str | Path,
+    destination: str | Path,
+    password: str,
+    algorithm: str = "AES-256-GCM",
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    overwrite: bool = False,
+    progress: Progress | None = None,
     cancel: threading.Event | None = None,
 ) -> Path:
     source_path, destination_path = Path(source), Path(destination)
@@ -113,8 +125,11 @@ def encrypt_file(
 
 
 def decrypt_file(
-    source: str | Path, destination: str | Path, password: str,
-    overwrite: bool = False, progress: Progress | None = None,
+    source: str | Path,
+    destination: str | Path,
+    password: str,
+    overwrite: bool = False,
+    progress: Progress | None = None,
     cancel: threading.Event | None = None,
 ) -> Path:
     source_path, destination_path = Path(source), Path(destination)
@@ -166,7 +181,9 @@ def decrypt_file(
                 try:
                     plaintext = cipher.decrypt(_nonce(prefix, counter), encrypted, header + record)
                 except InvalidTag as exc:
-                    raise EncryptionError("Decryption failed: incorrect password or damaged data.") from exc
+                    raise EncryptionError(
+                        "Decryption failed: incorrect password or damaged data."
+                    ) from exc
                 counter += 1
                 processed += _RECORD.size + encrypted_length
                 if record_type == 1:
@@ -197,9 +214,13 @@ def _walk_files(root: Path):
 
 
 def encrypt_directory(
-    source: str | Path, destination: str | Path, password: str,
-    algorithm: str = "AES-256-GCM", overwrite: bool = False,
-    progress: Progress | None = None, cancel: threading.Event | None = None,
+    source: str | Path,
+    destination: str | Path,
+    password: str,
+    algorithm: str = "AES-256-GCM",
+    overwrite: bool = False,
+    progress: Progress | None = None,
+    cancel: threading.Event | None = None,
 ) -> list[Path]:
     root, target = Path(source), Path(destination)
     if not root.is_dir():
@@ -214,10 +235,22 @@ def encrypt_directory(
         _check_cancel(cancel)
         relative = path.relative_to(root)
         output = target / relative.parent / f"{relative.name}.etfs"
+
         def update(done: int, _size: int, base: int = completed) -> None:
             if progress:
                 progress(base + done, total)
-        outputs.append(encrypt_file(path, output, password, algorithm, overwrite=overwrite, progress=update, cancel=cancel))
+
+        outputs.append(
+            encrypt_file(
+                path,
+                output,
+                password,
+                algorithm,
+                overwrite=overwrite,
+                progress=update,
+                cancel=cancel,
+            )
+        )
         completed += path.stat().st_size
     if progress:
         progress(total, total)
@@ -225,8 +258,11 @@ def encrypt_directory(
 
 
 def decrypt_directory(
-    source: str | Path, destination: str | Path, password: str,
-    overwrite: bool = False, progress: Progress | None = None,
+    source: str | Path,
+    destination: str | Path,
+    password: str,
+    overwrite: bool = False,
+    progress: Progress | None = None,
     cancel: threading.Event | None = None,
 ) -> list[Path]:
     root, target = Path(source), Path(destination)
@@ -242,10 +278,16 @@ def decrypt_directory(
         _check_cancel(cancel)
         relative = path.relative_to(root)
         output = target / relative.parent / relative.name.removesuffix(".etfs")
+
         def update(done: int, _size: int, base: int = completed) -> None:
             if progress:
                 progress(base + done, total)
-        outputs.append(decrypt_file(path, output, password, overwrite=overwrite, progress=update, cancel=cancel))
+
+        outputs.append(
+            decrypt_file(
+                path, output, password, overwrite=overwrite, progress=update, cancel=cancel
+            )
+        )
         completed += path.stat().st_size
     if progress:
         progress(total, total)
@@ -260,17 +302,21 @@ def inspect_file(path: str | Path) -> dict[str, object]:
     if prefix.startswith(b"ETFS") and len(prefix) >= _HEADER.size + SALT_SIZE + PREFIX_SIZE:
         magic, version, algorithm_id, kdf_id, chunk_size = _HEADER.unpack_from(prefix)
         return {
-            "format": "ETFS", "version": version,
+            "format": "ETFS",
+            "version": version,
             "algorithm": {1: "AES-256-GCM", 2: "ChaCha20-Poly1305"}.get(algorithm_id, "unknown"),
             "kdf": {1: "Argon2id"}.get(kdf_id, "unknown"),
-            "chunk_size": chunk_size, "file_size": file_path.stat().st_size,
+            "chunk_size": chunk_size,
+            "file_size": file_path.stat().st_size,
             "authenticated": False,
         }
     if prefix.startswith(b"ETK2") and len(prefix) >= 7:
         return {
-            "format": "ETK2", "version": prefix[4],
+            "format": "ETK2",
+            "version": prefix[4],
             "algorithm": {1: "AES-256-GCM", 2: "ChaCha20-Poly1305"}.get(prefix[5], "unknown"),
             "kdf": "Argon2id" if prefix[6] == 1 else "unknown",
-            "file_size": file_path.stat().st_size, "authenticated": False,
+            "file_size": file_path.stat().st_size,
+            "authenticated": False,
         }
     return {"format": "unknown", "file_size": file_path.stat().st_size, "authenticated": False}

@@ -18,7 +18,11 @@ def config_path() -> Path:
     if os.name == "nt":
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData/Roaming"))
         return base / "encryption-tool" / "config.toml"
-    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "encryption-tool" / "config.toml"
+    return (
+        Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+        / "encryption-tool"
+        / "config.toml"
+    )
 
 
 def load_config(path: str | Path | None = None) -> AppConfig:
